@@ -1,0 +1,92 @@
+const moneyFmt = new Intl.NumberFormat('en-PK', {
+  style: 'currency',
+  currency: 'PKR',
+  minimumFractionDigits: 2,
+})
+
+const compactFmt = new Intl.NumberFormat('en-PK', { notation: 'compact', maximumFractionDigits: 1 })
+const numFmt = new Intl.NumberFormat('en-PK', { maximumFractionDigits: 2 })
+
+export const money = (n) => moneyFmt.format(Number(n) || 0)
+export const compactMoney = (n) => `Rs ${compactFmt.format(Number(n) || 0)}`
+export const num = (n) => numFmt.format(Number(n) || 0)
+
+// 'T00:00' makes a YYYY-MM-DD string parse as local time, not UTC
+export const formatDate = (d) =>
+  d ? new Date(`${d}T00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : ''
+
+const pad = (n) => String(n).padStart(2, '0')
+const toISODate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
+// Local date as YYYY-MM-DD (toISOString would give the UTC date)
+export const today = () => toISODate(new Date())
+
+export const addDays = (days) => {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return toISODate(d)
+}
+
+export const monthStart = () => {
+  const d = new Date()
+  return toISODate(new Date(d.getFullYear(), d.getMonth(), 1))
+}
+
+export const initials = (text = '') =>
+  text
+    .replace(/@.*/, '')
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('') || '?'
+
+export const BUSINESS_NAME = 'Royal Stationers'
+
+export const ROLE_LABELS = { admin: 'Administrator', cashier: 'Cashier' }
+
+const round2 = (n) => Math.round(n * 100) / 100
+
+// ---------- Cartons + loose ----------
+// Quantities are stored in the product's unit; cartons are only for entry and display.
+
+export const toQty = (cartons, loose, cartonQty) =>
+  round2((Number(cartons) || 0) * (Number(cartonQty) || 1) + (Number(loose) || 0))
+
+export function splitQty(qty, cartonQty) {
+  const n = Number(qty) || 0
+  const per = Number(cartonQty) || 1
+  const abs = Math.abs(n)
+  const cartons = per > 1 ? Math.floor(abs / per) : 0
+  const loose = round2(abs - cartons * per)
+  const sign = n < 0 ? -1 : 1
+  return { cartons: sign * cartons, loose: sign * loose }
+}
+
+// 1836 Pc with 36/ctn -> "51 ctn", 1840 -> "51 ctn + 4 Pc", carton qty 1 -> "1,840 Pc"
+export function qtyText(qty, unit, cartonQty) {
+  const n = Number(qty) || 0
+  const neg = n < 0 ? '−' : ''
+  if (!(Number(cartonQty) > 1)) return `${neg}${num(Math.abs(n))} ${unit}`
+  const { cartons, loose } = splitQty(Math.abs(n), cartonQty)
+  const parts = []
+  if (cartons) parts.push(`${num(cartons)} ctn`)
+  if (loose || !cartons) parts.push(`${num(loose)} ${unit}`)
+  return neg + parts.join(' + ')
+}
+
+export const TXN_LABELS = { sale: 'Sale', return: 'Return' }
+export const PAYMENT_LABELS = { cash: 'Cash', credit: 'Credit' }
+export const DELIVERY_LABELS = { counter: 'Counter', bilty: 'Bilty', delivery: 'Delivery' }
+export const METHOD_LABELS = { cash: 'Cash', bank: 'Bank', cheque: 'Cheque' }
+export const ENTRY_LABELS = { opening: 'Opening stock', in: 'Stock in', out: 'Stock out', transfer: 'Transfer' }
+
+// Preview only - the database recalculates these when saving.
+export function computeInvoice(items, discount, freight) {
+  const subtotal = round2(
+    items.reduce((s, i) => s + round2(toQty(i.cartons, i.loose, i.carton_qty) * (Number(i.unit_price) || 0)), 0),
+  )
+  const disc = Number(discount) || 0
+  const frt = Number(freight) || 0
+  return { subtotal, discount: disc, freight: frt, total: round2(subtotal - disc + frt) }
+}
