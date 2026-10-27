@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, Printer, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, Printer, RotateCcw, Trash2 } from 'lucide-react'
 import { deleteInvoice, getChequeImageUrl, getInvoice } from '../lib/api'
 import { DELIVERY_LABELS, PAYMENT_LABELS, formatDate, money, num, qtyText } from '../lib/format'
 import { customerLabel } from '../lib/customerFields'
@@ -18,6 +18,7 @@ export default function InvoiceDetail() {
   const navigate = useNavigate()
   const { can } = useAuth()
   const canDelete = can('delete')
+  const canSell = can('sales')
   const [doc, setDoc] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -77,6 +78,29 @@ export default function InvoiceDetail() {
             <TxnBadge type={doc.txn_type} mode={doc.payment_mode} />
           </div>
           {doc.created_by_name && <p className="text-secondary created-by">Created by {doc.created_by_name}</p>}
+          {doc.original && (
+            <p className="text-secondary created-by">
+              Return against{' '}
+              <Link to={`/app/invoices/${doc.original.id}`} className="link">
+                invoice #{doc.original.invoice_no}
+              </Link>{' '}
+              of {formatDate(doc.original.invoice_date)}
+            </p>
+          )}
+          {doc.returns.length > 0 && (
+            <p className="text-secondary created-by">
+              Returned on:{' '}
+              {doc.returns.map((r, i) => (
+                <span key={r.id}>
+                  {i > 0 && ', '}
+                  <Link to={`/app/invoices/${r.id}`} className="link">
+                    #{r.invoice_no}
+                  </Link>{' '}
+                  ({money(r.total)})
+                </span>
+              ))}
+            </p>
+          )}
         </div>
         <div className="page-actions">
           {canDelete && (
@@ -94,6 +118,11 @@ export default function InvoiceDetail() {
           <button className="btn btn-secondary" onClick={() => window.print()}>
             <Printer size={16} /> Print / PDF
           </button>
+          {isSale && canSell && (
+            <Link to={`/app/invoices/new?type=return&customer=${doc.customer_id}&against=${doc.id}`} className="btn btn-secondary">
+              <RotateCcw size={16} /> Return items
+            </Link>
+          )}
           <Link to="/app/invoices/new" className="btn btn-primary">
             <Plus size={16} /> New sale
           </Link>
@@ -133,6 +162,12 @@ export default function InvoiceDetail() {
               <dt>Date</dt>
               <dd>{formatDate(doc.invoice_date)}</dd>
             </div>
+            {doc.original && (
+              <div>
+                <dt>Against invoice</dt>
+                <dd>#{doc.original.invoice_no}</dd>
+              </div>
+            )}
             <div>
               <dt>Payment</dt>
               <dd>{PAYMENT_LABELS[doc.payment_mode]}</dd>

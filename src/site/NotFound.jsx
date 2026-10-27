@@ -6,7 +6,7 @@ export default function NotFound() {
   usePageMeta('Page not found')
 
   return (
-    <section className="ruled">
+    <section className="bg-surface-2">
       <div className="site-wrap flex flex-col items-start py-24 md:py-32">
         <p className="site-eyebrow">Error 404</p>
         <h1 className="site-h1 mt-4 max-w-[40rem] text-ink">This page is not on our shelves.</h1>

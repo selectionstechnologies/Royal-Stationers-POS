@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, Handshake, MapPin, ShieldCheck, Star, Truck } from 'lucide-react'
 import { SHOP } from './siteInfo'
-import { CtaBand, PageHero, SectionHead, ShopPhoto, WhatsAppButton, usePageMeta } from './pieces'
+import { CategoryGrid, CtaBand, PageHero, SectionHead, usePageMeta } from './pieces'
 
 const VALUES = [
-  { icon: ShieldCheck, title: 'Fair, clear rates', text: 'Carton and loose rates on every bill, so a shopkeeper can check every line and price it on.' },
-  { icon: Handshake, title: 'Long-term customers', text: 'Many of the shops we supply have ordered from us for years. We would rather keep a customer than win one order.' },
-  { icon: Truck, title: 'Orders out on time', text: 'Ready stock at the shop and godown, packed by carton and handed to transport the same day where possible.' },
+  { icon: ShieldCheck, title: 'Fair, clear rates', text: 'Carton and loose rates on every bill, so you can check each line.', to: '/wholesale#rates' },
+  { icon: Handshake, title: 'Long-term customers', text: 'We would rather keep a customer for years than win one order.', to: '/wholesale#accounts' },
+  { icon: Truck, title: 'Orders out on time', text: 'Ready stock, packed by carton, handed to transport the same day.', to: '/wholesale#delivery' },
+  { icon: Star, title: `Rated ${SHOP.rating} on Google`, text: 'Read what customers who visit the shop say.', href: SHOP.mapUrl },
 ]
 
 export default function About() {
@@ -16,33 +17,24 @@ export default function About() {
     <>
       <PageHero
         eyebrow="About us"
-        title="A familiar name in Urdu Bazar."
+        lines={["Urdu Bazar's stationery supplier.", 'Trusted by shops across Pakistan.', `Rated ${SHOP.rating} by our customers.`]}
         lead="Royal Stationers has supplied stationery shops, schools and offices from Urdu Bazar, Lahore for many years. Our counter is on the first floor of Bashir Center, and our customers are spread across Pakistan."
         actions={
-          <Link to="/contact" className="site-btn site-btn-primary">
-            <MapPin />
-            Visit the shop
-          </Link>
+          <>
+            <Link to="/contact" className="site-btn site-btn-primary">
+              <MapPin />
+              Visit the shop
+            </Link>
+            <Link to="/products" className="site-btn site-btn-outline">
+              Browse products
+            </Link>
+          </>
         }
-        aside={
-          <ShopPhoto
-            badge={
-              <>
-                <span className="icon-tile h-10 w-10">
-                  <Star size={20} className="fill-current" />
-                </span>
-                <span className="min-w-0 leading-tight">
-                  <span className="block text-[14px] font-semibold text-ink">Rated {SHOP.rating} on Google</span>
-                  <span className="block text-[13px] text-ink-2">By customers who visit the shop</span>
-                </span>
-              </>
-            }
-          />
-        }
+        cards={VALUES}
       />
 
       <section className="border-b border-line">
-        <div className="site-wrap grid gap-10 py-16 md:py-24 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
+        <div className="site-wrap grid gap-10 py-16 md:py-20 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
           <SectionHead eyebrow="Our work" title="We keep the shelves of other shops full." />
           <div className="grid gap-5 text-[17px] text-ink-2">
             <p>
@@ -53,33 +45,25 @@ export default function About() {
               That is why everything we do is measured in cartons. Our rates leave room for the shopkeeper's margin, our bills show cartons and loose
               pieces line by line, and our dispatch is built around bilty, so a shop in another city can order as easily as one down the street.
             </p>
-            <p>
-              Behind the counter, every sale, return and payment is recorded in our own system, so regular customers always have a clear ledger.
-            </p>
+            <p>Behind the counter, every sale, return and payment is recorded in our own system, so regular customers always have a clear ledger.</p>
           </div>
         </div>
       </section>
 
       <section className="border-b border-line bg-surface-2">
-        <div className="site-wrap py-16 md:py-24">
-          <SectionHead eyebrow="How we work" title="Three things our customers count on." />
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {VALUES.map(({ icon: Icon, title, text }) => (
-              <article key={title} className="rounded-lg border border-line bg-surface p-6 shadow-[var(--shadow-sm)]">
-                <span className="icon-tile">
-                  <Icon size={22} />
-                </span>
-                <h3 className="mt-5 text-[18px] text-ink">{title}</h3>
-                <p className="mt-2 text-[15px] text-ink-2">{text}</p>
-              </article>
-            ))}
-          </div>
-          <div className="mt-10 flex flex-wrap gap-3">
-            <WhatsAppButton />
-            <Link to="/wholesale" className="site-btn site-btn-outline">
-              How wholesale works
-              <ArrowRight />
-            </Link>
+        <div className="site-wrap py-16 md:py-20">
+          <SectionHead
+            eyebrow="What we stock"
+            title="A look at our departments."
+            action={
+              <Link to="/products" className="site-btn site-btn-outline">
+                All products
+                <ArrowRight />
+              </Link>
+            }
+          />
+          <div className="mt-10">
+            <CategoryGrid limit={4} />
           </div>
         </div>
       </section>

@@ -3,7 +3,7 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 /* These names are our own component classes (.table) or plain words in the code, not utilities we use */
-@source not inline('table container fixed filter transform visible');
+@source not inline('table container filter transform visible');
 
 /* ============ Tokens ============ */
 /* One brand hue (royal ink) for actions and active states. Green, orange and red only ever mean state. */
@@ -52,11 +52,9 @@
   --sidebar-active: #ffffff;
   --sidebar-accent: #9cb4ea;
 
-  /* Public website: WhatsApp green is used only on WhatsApp actions; ruled-paper hero lines */
+  /* Public website: WhatsApp green is used only on WhatsApp actions */
   --wa: #1fa855;
   --wa-hover: #188a45;
-  --rule: rgba(33, 58, 115, 0.07);
-  --rule-margin: rgba(33, 58, 115, 0.18);
 
   --radius: 10px;
   --radius-sm: 6px;
@@ -952,21 +950,14 @@ select.input-sm { padding-right: 30px; background-position: right 8px center; }
 .site-btn-outline:hover { border-color: var(--text-muted); }
 
 .site-eyebrow { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--primary); }
-.site-h1 { font-family: var(--font-serif); font-weight: 600; font-size: 40px; line-height: 1.06; letter-spacing: -0.02em; }
-@media (min-width: 640px) { .site-h1 { font-size: 50px; } }
-@media (min-width: 1024px) { .site-h1 { font-size: 58px; } }
+.site-h1 { font-family: var(--font-serif); font-weight: 600; font-size: 36px; line-height: 1.1; letter-spacing: -0.02em; }
+@media (min-width: 640px) { .site-h1 { font-size: 46px; } }
+@media (min-width: 1024px) { .site-h1 { font-size: 54px; } }
 .site-h2 { font-family: var(--font-serif); font-weight: 600; font-size: 30px; line-height: 1.15; letter-spacing: -0.01em; }
 @media (min-width: 768px) { .site-h2 { font-size: 38px; } }
 .site-lead { font-size: 17px; color: var(--text-secondary); max-width: 36rem; }
 @media (min-width: 768px) { .site-lead { font-size: 18px; } }
 
-/* Notebook paper: faint ruled lines with a margin line, kept left of the text gutter */
-.ruled {
-  background-color: var(--surface);
-  background-image:
-    linear-gradient(90deg, transparent max(8px, 4vw - 16px), var(--rule-margin) max(8px, 4vw - 16px), var(--rule-margin) calc(max(8px, 4vw - 16px) + 1px), transparent calc(max(8px, 4vw - 16px) + 1px)),
-    repeating-linear-gradient(180deg, transparent 0 31px, var(--rule) 31px 32px);
-}
 .icon-tile { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary); }
 .site-nav-link { font-size: 15px; font-weight: 500; color: var(--text-secondary); transition: color 0.15s; }
 .site-nav-link:hover, .site-nav-link.active { color: var(--text); }
@@ -978,5 +969,44 @@ select.input-sm { padding-right: 30px; background-position: right 8px center; }
 .login-site-link:hover { color: #ffffff; }
 .login-back { display: none; margin: -6px 0 0; }
 @media (max-width: 900px) { .login-back { display: inline-flex; } }
-.urdu { font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif; line-height: 2.2; }
+
+/* Hero: the whole headline is typed; the invisible longest line holds the height */
+.typewriter { display: grid; }
+.typewriter > span { grid-area: 1 / 1; }
+.tw-sizer { visibility: hidden; }
+.tw-caret { color: var(--primary); }
+.tw-caret { display: inline-block; width: 3px; height: 0.82em; margin-left: 4px; vertical-align: -0.04em; background: currentColor; animation: tw-blink 1s steps(1) infinite; }
+@keyframes tw-blink { 50% { opacity: 0; } }
+
+/* Clickable cards: whole card is the link */
+.site-card {
+  display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 20px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); color: var(--text); text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
+@media (max-width: 639px) {
+  .site-card { padding: 16px; gap: 12px; }
+  .site-card-media { margin: -16px -16px 0; }
+}
+a.site-card:hover, button.site-card:hover { border-color: var(--hover-border); box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+.site-card .card-arrow { transition: transform 0.15s; }
+.site-card:hover .card-arrow { transform: translate(2px, -2px); }
+.site-card-media { margin: -20px -20px 0; overflow: hidden; border-radius: var(--radius) var(--radius) 0 0; background: var(--surface-2); }
+.site-card-media img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; transition: transform 0.3s; }
+.site-card:hover .site-card-media img { transform: scale(1.03); }
+
+.site-chip { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface); font-size: 14px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; transition: border-color 0.15s, color 0.15s, background 0.15s; }
+.site-chip:hover { color: var(--text); border-color: var(--text-muted); }
+.site-chip[aria-pressed='true'] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tw-caret { animation: none; }
+  .site-card, .site-card-media img, .site-card .card-arrow { transition: none; }
+  a.site-card:hover, button.site-card:hover, .site-card:hover .site-card-media img { transform: none; }
+}
+}
+
+/* Invoice list customer filter, toolbar end button */
+.toolbar-customer { width: 260px; max-width: 100%; }
+.toolbar-customer .picked .strong { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toolbar-end { margin-left: auto; }

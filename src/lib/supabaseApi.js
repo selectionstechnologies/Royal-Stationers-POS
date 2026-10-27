@@ -12,6 +12,7 @@ function unwrap({ data, error }) {
       if (/suppliers_name/i.test(error.message)) throw new Error('A supplier with this name already exists.')
       throw new Error('This record already exists.')
     }
+    if (error.code === '23503' && /return_of/i.test(error.message)) throw new Error('This invoice has returns against it. Delete those returns first.')
     if (error.code === '23503') throw new Error('This record is used in invoices or stock entries, so it cannot be deleted.')
     if (error.code === '42501') throw new Error('You do not have permission to do this.')
     throw new Error(error.message)
@@ -278,7 +279,44 @@ export async function getInvoice(id) {
       .order('sort_order', { referencedTable: 'invoice_items' })
       .single(),
   )
-  return { ...doc, items: doc.invoice_items, created_by_name: doc.creator?.name ?? null }
+  // Return: the sale it is against. Sale: the returns made against it.
+  const [original, returns] = await Promise.all([
+    doc.return_of ? supabase.from('invoices').select('id, invoice_no, invoice_date').eq('id', doc.return_of).single().then(unwrap) : null,
+    doc.txn_type === 'sale'
+      ? supabase.from('invoices').select('id, invoice_no, invoice_date, total').eq('return_of', id).order('invoice_no').then(unwrap)
+      : [],
+  ])
+  return { ...doc, items: doc.invoice_items, created_by_name: doc.creator?.name ?? null, original, returns }
+}
+
+// A customer's sale invoices, newest first (to pick the one a return is against)
+export async function listCustomerSales(customerId) {
+  return unwrap(
+    await supabase
+      .from('invoices')
+      .select('id, invoice_no, invoice_date, total')
+      .eq('customer_id', customerId)
+      .eq('txn_type', 'sale')
+      .order('invoice_no', { ascending: false })
+      .limit(200),
+  )
+}
+
+// Lines of a sale invoice with how much is still left to return
+export async function getReturnableItems(invoiceId) {
+  const items = unwrap(
+    await supabase
+      .from('invoice_items')
+      .select('id, product_id, product_name, unit, carton_qty, location_id, qty, unit_price')
+      .eq('invoice_id', invoiceId)
+      .order('sort_order'),
+  )
+  const returned = items.length
+    ? unwrap(await supabase.from('invoice_items').select('return_of_item, qty').in('return_of_item', items.map((i) => i.id)))
+    : []
+  const done = {}
+  for (const r of returned) done[r.return_of_item] = (done[r.return_of_item] ?? 0) + Number(r.qty)
+  return items.map((i) => ({ ...i, returned: done[i.id] ?? 0, left: Number(i.qty) - (done[i.id] ?? 0) }))
 }
 
 // Every line this customer bought or returned, oldest first
@@ -312,7 +350,8 @@ export async function getChequeImageUrl(path) {
 }
 
 // Returns the new invoice id. A cheque photo is uploaded first, then saved with the invoice.
-export async function createInvoice({ customerId, items, date, txnType, paymentMode, deliveryMode, biltyNo, discount, freight, received, notes, chequeFile }) {
+// returnOf: the sale invoice a return is against; its lines then carry return_item_id.
+export async function createInvoice({ customerId, items, date, txnType, paymentMode, deliveryMode, biltyNo, discount, freight, received, notes, chequeFile, returnOf }) {
   const chequeImage = paymentMode === 'cheque' && chequeFile ? await uploadChequeImage(chequeFile) : null
   return unwrap(
     await supabase.rpc('create_invoice', {
@@ -323,6 +362,7 @@ export async function createInvoice({ customerId, items, date, txnType, paymentM
         cartons: Number(i.cartons) || 0,
         loose: Number(i.loose) || 0,
         unit_price: Number(i.unit_price),
+        ...(returnOf && { return_item_id: i.return_item_id }),
       })),
       p_invoice_date: date,
       p_txn_type: txnType,
@@ -334,6 +374,7 @@ export async function createInvoice({ customerId, items, date, txnType, paymentM
       p_received: Number(received) || 0,
       p_notes: notes || null,
       p_cheque_image: chequeImage,
+      p_return_of: returnOf || null,
     }),
   )
 }

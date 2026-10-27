@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ArrowLeft, Camera, History, Plus, Trash2, UserRound, X } from 'lucide-react'
-import { createInvoice, getDefaultCompany, getPriceHistory, listBalances, listCustomers, listLocations, listProducts, listStockLevels } from '../lib/api'
+import {
+  createInvoice,
+  getDefaultCompany,
+  getPriceHistory,
+  getReturnableItems,
+  listBalances,
+  listCustomerSales,
+  listCustomers,
+  listLocations,
+  listProducts,
+  listStockLevels,
+} from '../lib/api'
 import { DELIVERY_LABELS, PAYMENT_LABELS, TXN_LABELS, computeInvoice, formatDate, money, num, qtyText, toQty, today } from '../lib/format'
 import { bestLocation, stockIndex } from '../lib/stock'
 import { customerLabel } from '../lib/customerFields'
@@ -13,6 +24,7 @@ import { useAuth } from '../auth/AuthProvider'
 import DateInput from '../components/DateInput'
 
 const n = (v) => Number(String(v ?? '').replace(/,/g, '')) || 0
+const NO_INVOICE = 'none' // return without an invoice (managers only)
 
 export default function InvoiceForm() {
   const navigate = useNavigate()
@@ -31,7 +43,9 @@ export default function InvoiceForm() {
 
   const [customer, setCustomer] = useState(null)
   const [date, setDate] = useState(today())
-  const [txnType, setTxnType] = useState('sale')
+  const [txnType, setTxnType] = useState(params.get('type') === 'return' ? 'return' : 'sale')
+  const [returnOf, setReturnOf] = useState(params.get('against') ?? '') // sale invoice id, NO_INVOICE or ''
+  const [customerSales, setCustomerSales] = useState(null)
   const [paymentMode, setPaymentMode] = useState('credit')
   const [chequeFile, setChequeFile] = useState(null)
   const [chequeOpen, setChequeOpen] = useState(false)
@@ -83,6 +97,52 @@ export default function InvoiceForm() {
     }
   }, [entry?.product, customer])
 
+  // Returns: the customer's sale invoices to choose from
+  useEffect(() => {
+    setCustomerSales(null)
+    if (txnType !== 'return' || !customer) return
+    let live = true
+    listCustomerSales(customer.id)
+      .then((rows) => live && setCustomerSales(rows))
+      .catch((e) => setError(e.message))
+    return () => {
+      live = false
+    }
+  }, [txnType, customer])
+
+  // Return against an invoice: its lines become the bill, quantities start empty
+  useEffect(() => {
+    if (!returnOf || returnOf === NO_INVOICE) return
+    let live = true
+    getReturnableItems(returnOf)
+      .then((rows) => {
+        if (!live) return
+        setEntry(null)
+        setItems(
+          rows.map((r) => ({
+            key: r.id,
+            return_item_id: r.id,
+            product_id: r.product_id,
+            name: r.product_name,
+            unit: r.unit,
+            carton_qty: r.carton_qty,
+            min_price: 0,
+            location_id: r.location_id,
+            cartons: '',
+            loose: '',
+            unit_price: String(r.unit_price),
+            sold: Number(r.qty),
+            returned: r.returned,
+            left: r.left,
+          })),
+        )
+      })
+      .catch((e) => setError(e.message))
+    return () => {
+      live = false
+    }
+  }, [returnOf])
+
   const totals = useMemo(() => computeInvoice(items, discount, freight), [items, discount, freight])
 
   // Cash / cheque: money taken = bill total, unless the user typed another amount
@@ -94,6 +154,30 @@ export default function InvoiceForm() {
   if (!company) return <ErrorBanner message={error || 'Add your business details in Settings first.'} />
 
   const isSale = txnType === 'sale'
+  const againstInvoice = !isSale && returnOf && returnOf !== NO_INVOICE
+
+  function changeType(type) {
+    setTxnType(type)
+    if (returnOf) {
+      setReturnOf('')
+      setItems([])
+    }
+  }
+
+  function changeCustomer(c) {
+    setCustomer(c)
+    if (returnOf) {
+      setReturnOf('')
+      setItems([])
+    }
+  }
+
+  function chooseReturnOf(id) {
+    if (id === returnOf) return
+    // Leaving an invoice, or picking another one: the old lines go
+    if (againstInvoice || id !== NO_INVOICE) setItems([])
+    setReturnOf(id)
+  }
   const available = (productId, locationId) => stock[productId]?.byLocation[locationId] ?? 0
 
   // Qty already on the bill per product+store, so two lines can't both use the same stock
@@ -158,19 +242,24 @@ export default function InvoiceForm() {
       amount: qty * n(i.unit_price),
       short: isSale && !company.allow_negative_stock && qty > avail,
       belowMin: isSale && i.min_price > 0 && n(i.unit_price) < i.min_price,
+      over: i.return_item_id != null && qty > i.left,
       avail,
     }
   })
+  // Against an invoice, lines left at 0 are simply not returned
+  const billLines = againstInvoice ? lines.filter((l) => l.qty > 0) : lines
 
   const prevBalance = customer ? (balances[customer.id] ?? 0) : 0
   const receivedNum = n(received)
   const afterBill = isSale ? prevBalance + totals.total - receivedNum : prevBalance - totals.total + receivedNum
   const overLimit = customer && Number(customer.credit_limit) > 0 && isSale && afterBill > Number(customer.credit_limit)
 
-  const blocking = lines.some((l) => l.short || l.qty <= 0 || n(l.unit_price) < 0 || l.unit_price === '') || (!canOverride && lines.some((l) => l.belowMin))
+  const blocking =
+    billLines.some((l) => l.short || l.over || l.qty <= 0 || n(l.unit_price) < 0 || l.unit_price === '') || (!canOverride && billLines.some((l) => l.belowMin))
   const discountValid = totals.discount >= 0 && totals.discount <= totals.subtotal
   const chequeMissing = paymentMode === 'cheque' && !chequeFile
-  const canSave = customer && lines.length > 0 && !blocking && discountValid && totals.freight >= 0 && receivedNum >= 0 && date && !chequeMissing
+  const needsInvoice = !isSale && !returnOf
+  const canSave = customer && billLines.length > 0 && !blocking && discountValid && totals.freight >= 0 && receivedNum >= 0 && date && !chequeMissing && !needsInvoice
 
   async function handleSave() {
     setSaving(true)
@@ -178,7 +267,8 @@ export default function InvoiceForm() {
     try {
       const id = await createInvoice({
         customerId: customer.id,
-        items: lines,
+        items: billLines,
+        returnOf: againstInvoice ? returnOf : null,
         date,
         txnType,
         paymentMode,
@@ -222,7 +312,7 @@ export default function InvoiceForm() {
                 <UserRound size={16} />
                 <span className="strong">{customerLabel(customer)}</span>
                 <span className="text-muted">#{customer.code}</span>
-                <button type="button" className="icon-btn" onClick={() => setCustomer(null)} aria-label="Change customer">
+                <button type="button" className="icon-btn" onClick={() => changeCustomer(null)} aria-label="Change customer">
                   <X size={16} />
                 </button>
               </div>
@@ -233,7 +323,7 @@ export default function InvoiceForm() {
                   balances={balances}
                   autoFocus
                   onPick={(c) => {
-                    setCustomer(c)
+                    changeCustomer(c)
                     setTimeout(() => searchRef.current?.focus(), 0)
                   }}
                 />
@@ -250,7 +340,7 @@ export default function InvoiceForm() {
           </Field>
         </div>
         <Field label="Type">
-          <select className="input" value={txnType} onChange={(e) => setTxnType(e.target.value)}>
+          <select className="input" value={txnType} onChange={(e) => changeType(e.target.value)}>
             {Object.entries(TXN_LABELS).map(([k, label]) => (
               <option key={k} value={k}>
                 {label}
@@ -258,6 +348,26 @@ export default function InvoiceForm() {
             ))}
           </select>
         </Field>
+        {!isSale && (
+          <div className="invoice-head-against">
+            <Field label="Against invoice">
+              <select
+                className={`input ${needsInvoice && customer ? 'warn' : ''}`}
+                value={returnOf}
+                disabled={!customer}
+                onChange={(e) => chooseReturnOf(e.target.value)}
+              >
+                <option value="">{!customer ? 'Choose a customer first' : customerSales ? 'Choose invoice…' : 'Loading…'}</option>
+                {(customerSales ?? []).map((inv) => (
+                  <option key={inv.id} value={inv.id}>
+                    #{inv.invoice_no} · {formatDate(inv.invoice_date)} · {money(inv.total)}
+                  </option>
+                ))}
+                {canOverride && <option value={NO_INVOICE}>No invoice (old sale)</option>}
+              </select>
+            </Field>
+          </div>
+        )}
         <Field label="Payment">
           <select
             className="input"
@@ -296,6 +406,20 @@ export default function InvoiceForm() {
 
       <div className="builder">
         <div className="builder-main">
+          {againstInvoice ? (
+            <ReturnLines lines={lines} locations={locations} invoiceNo={customerSales?.find((x) => x.id === returnOf)?.invoice_no} onChange={updateItem} />
+          ) : needsInvoice ? (
+            <div className="card">
+              <div className="card-head card-head-tight">
+                <div>
+                  <h3>Items to return</h3>
+                  <p className="text-secondary">
+                    {customer ? 'Choose the invoice this return is for, above. Its items will appear here.' : 'Choose the customer, then the invoice this return is for.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="card">
             <div className="card-head card-head-tight">
               <div>
@@ -488,6 +612,7 @@ export default function InvoiceForm() {
               </div>
             )}
           </div>
+          )}
         </div>
 
         <aside className="builder-aside">
@@ -509,7 +634,7 @@ export default function InvoiceForm() {
 
             <div className="summary-block">
               <div className="summary-label">
-                {isSale ? 'Bill' : 'Return'} · {lines.length} item{lines.length === 1 ? '' : 's'}
+                {isSale ? 'Bill' : 'Return'} · {billLines.length} item{billLines.length === 1 ? '' : 's'}
               </div>
               <div className="sum-row">
                 <span>Subtotal</span>
@@ -557,6 +682,7 @@ export default function InvoiceForm() {
                 {saving ? 'Saving…' : isSale ? 'Save invoice' : 'Save return'}
               </button>
               {!customer && <p className="text-muted summary-hint">Choose a customer to save.</p>}
+              {customer && needsInvoice && <p className="text-muted summary-hint">Choose the invoice this return is for.</p>}
             </div>
           </div>
         </aside>
@@ -584,5 +710,94 @@ export default function InvoiceForm() {
         />
       )}
     </>
+  )
+}
+
+// Return against an invoice: every line of that bill, with how much can still come back
+function ReturnLines({ lines, locations, invoiceNo, onChange }) {
+  return (
+    <div className="card">
+      <div className="card-head card-head-tight">
+        <div>
+          <h3>Items on invoice #{invoiceNo ?? '…'}</h3>
+          <p className="text-secondary">Enter what is coming back. Rates are from the original bill; leave empty for items not returned.</p>
+        </div>
+      </div>
+      {lines.length === 0 ? (
+        <p className="text-muted">Loading items…</p>
+      ) : (
+        <div className="lines-wrap">
+          <table className="table table-compact lines-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Product</th>
+                <th>Back to store</th>
+                <th className="num">Ctn</th>
+                <th className="num">Loose</th>
+                <th className="num">Rate</th>
+                <th className="num">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l, idx) => {
+                const done = l.left <= 0
+                return (
+                  <tr key={l.key} className={l.over ? 'row-error' : done ? 'row-muted' : ''}>
+                    <td className="text-muted line-index">{idx + 1}</td>
+                    <td className="line-product">
+                      <div className="cell-stack">
+                        <span className="strong">{l.name}</span>
+                        <span className="text-muted">
+                          Sold {qtyText(l.sold, l.unit, l.carton_qty)}
+                          {l.returned > 0 && ` · ${qtyText(l.returned, l.unit, l.carton_qty)} already returned`}
+                          {done && ' · fully returned'}
+                          {l.over && <span className="text-critical"> · only {qtyText(l.left, l.unit, l.carton_qty)} can come back</span>}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="line-store" data-label="Store">
+                      <select className="input input-sm" value={l.location_id} disabled={done} onChange={(e) => onChange(l.key, 'location_id', e.target.value)}>
+                        {locations.map((loc) => (
+                          <option key={loc.id} value={loc.id}>
+                            {loc.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="num" data-label="Cartons">
+                      <input
+                        className="input input-num input-sm"
+                        inputMode="decimal"
+                        placeholder={l.carton_qty <= 1 ? '—' : '0'}
+                        disabled={done || l.carton_qty <= 1}
+                        value={l.carton_qty <= 1 ? '' : l.cartons}
+                        onChange={(e) => onChange(l.key, 'cartons', e.target.value)}
+                      />
+                    </td>
+                    <td className="num" data-label="Loose">
+                      <input
+                        className="input input-num input-sm"
+                        inputMode="decimal"
+                        placeholder="0"
+                        disabled={done}
+                        value={l.loose}
+                        onChange={(e) => onChange(l.key, 'loose', e.target.value)}
+                      />
+                    </td>
+                    <td className="num" data-label="Rate">
+                      {money(l.unit_price)}
+                    </td>
+                    <td className="num strong line-total" data-label="Amount">
+                      {money(l.amount)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   )
 }

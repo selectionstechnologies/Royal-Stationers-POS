@@ -1,26 +1,29 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, BookUser, Boxes, Building2, ChevronDown, Package, School, Store, Truck } from 'lucide-react'
-import { CtaBand, PageHero, SectionHead, WhatsAppButton, usePageMeta } from './pieces'
+import { CtaBand, PageHero, SectionHead, usePageMeta } from './pieces'
 
 const WHO = [
-  { icon: Store, title: 'Stationery shops and bookshops', text: 'Restock your shelves every week with carton rates that leave room for your margin.' },
-  { icon: School, title: 'Schools and academies', text: 'Send the yearly or term list once. We pack it by class or by item.' },
-  { icon: Building2, title: 'Offices', text: 'Files, registers, pens and desk supplies for the whole office, billed on one invoice.' },
-  { icon: Truck, title: 'Shops in other cities', text: 'Order on WhatsApp and receive the goods by bilty through the transport you trust.' },
+  { icon: Store, title: 'Shops and bookshops', text: 'Weekly restocking at carton rates that leave room for your margin.', to: '/products' },
+  { icon: School, title: 'Schools and academies', text: 'Send the term list once. We pack it by class or by item.', to: '/products?g=school' },
+  { icon: Building2, title: 'Offices', text: 'Files, registers, pens and desk supplies on one invoice.', to: '/products?g=office' },
+  { icon: Truck, title: 'Shops in other cities', text: 'Order on WhatsApp, receive it by bilty through your transport.', href: '#delivery' },
 ]
 
 const TERMS = [
   {
+    id: 'rates',
     icon: Boxes,
     title: 'Carton rate and loose rate',
     text: 'Every item has a carton rate for full cartons and a loose rate for single pieces. You can mix both in one order. The invoice shows cartons and loose pieces separately, so you can check every line.',
   },
   {
+    id: 'delivery',
     icon: Truck,
     title: 'Bilty delivery',
     text: 'Tell us the transport company and your city. We pack the order, hand it over, and send you the bilty number on WhatsApp so you can track it.',
   },
   {
+    id: 'accounts',
     icon: BookUser,
     title: 'Accounts for regular customers',
     text: 'Shops that buy from us regularly can open an account. Every bill, return and payment is recorded in your ledger, and we can share your statement at any time.',
@@ -42,43 +45,28 @@ export default function Wholesale() {
     <>
       <PageHero
         eyebrow="Wholesale"
-        title="Rates that work for the shop selling it on."
+        lines={['Wholesale rates that work for shops.', 'Carton and loose rates on every bill.', 'Bilty delivery to your city.']}
         lead="We supply stationery shops, schools and offices. Order a full carton or a few loose pieces, collect from Urdu Bazar or receive it by bilty."
         actions={
           <>
-            <WhatsAppButton text="Assalam o Alaikum, mujhe wholesale account ke bare me maloomat chahiye.">Ask about an account</WhatsAppButton>
+            <Link to="/contact" className="site-btn site-btn-primary">
+              Ask about an account
+              <ArrowRight />
+            </Link>
             <Link to="/products" className="site-btn site-btn-outline">
               See what we stock
-              <ArrowRight />
             </Link>
           </>
         }
-        aside={<RateCard />}
+        cards={WHO}
       />
 
       <section className="border-b border-line">
-        <div className="site-wrap py-16 md:py-24">
-          <SectionHead eyebrow="Who we supply" title="Four kinds of customers, one counter." />
-          <div className="mt-12 grid gap-x-10 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
-            {WHO.map(({ icon: Icon, title, text }) => (
-              <div key={title} className="flex flex-col gap-3">
-                <span className="icon-tile">
-                  <Icon size={22} />
-                </span>
-                <h3 className="text-[18px] text-ink">{title}</h3>
-                <p className="text-[15px] text-ink-2">{text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-b border-line bg-surface-2">
-        <div className="site-wrap py-16 md:py-24">
+        <div className="site-wrap py-16 md:py-20">
           <SectionHead eyebrow="How it works" title="Rates, delivery and accounts." />
           <div className="mt-12 grid gap-4 lg:grid-cols-3">
-            {TERMS.map(({ icon: Icon, title, text }) => (
-              <article key={title} className="rounded-lg border border-line bg-surface p-6 shadow-[var(--shadow-sm)]">
+            {TERMS.map(({ id, icon: Icon, title, text }) => (
+              <article key={title} id={id} className="scroll-mt-24 rounded-lg border border-line bg-surface p-6 shadow-[var(--shadow-sm)]">
                 <span className="icon-tile">
                   <Icon size={22} />
                 </span>
@@ -90,10 +78,21 @@ export default function Wholesale() {
         </div>
       </section>
 
-      <section>
-        <div className="site-wrap grid gap-10 py-16 md:py-24 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+      <section className="border-b border-line bg-surface-2">
+        <div className="site-wrap grid items-center gap-10 py-16 md:py-20 lg:grid-cols-2 lg:gap-16">
+          <SectionHead
+            eyebrow="Your bill"
+            title="Cartons and loose pieces, line by line."
+            text="Every invoice lists cartons and loose pieces separately for each item, so you can check the count against the parcel before you sign the bilty."
+          />
+          <RateCard />
+        </div>
+      </section>
+
+      <section id="faq" className="scroll-mt-20">
+        <div className="site-wrap grid gap-10 py-16 md:py-20 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
           <div className="self-start lg:sticky lg:top-28">
-            <SectionHead eyebrow="Questions" title="What shopkeepers ask us first." text="Anything else, ask us on WhatsApp." />
+            <SectionHead eyebrow="Questions" title="What shopkeepers ask us first." text="Anything else, ask us on the contact page." />
           </div>
           <div className="divide-y divide-line border-y border-line">
             {FAQ.map(({ q, a }) => (

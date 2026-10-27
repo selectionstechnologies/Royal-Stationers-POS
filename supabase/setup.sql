@@ -219,6 +219,7 @@ create table public.invoices (
   delivery_mode  text not null default 'counter' check (delivery_mode in ('counter', 'bilty', 'delivery')),
   bilty_no       text,
   cheque_image   text,  -- path in the 'cheques' storage bucket (cheque payments)
+  return_of      uuid references public.invoices(id),  -- returns: the sale invoice they are against
   subtotal       numeric(14,2) not null,
   discount       numeric(14,2) not null default 0,
   freight        numeric(14,2) not null default 0,
@@ -231,6 +232,7 @@ create table public.invoices (
 );
 create index invoices_customer_idx on public.invoices (customer_id, invoice_date);
 create index invoices_date_idx on public.invoices (invoice_date);
+create index invoices_return_of_idx on public.invoices (return_of) where return_of is not null;
 
 create table public.invoice_items (
   id            uuid primary key default gen_random_uuid(),
@@ -245,9 +247,11 @@ create table public.invoice_items (
   qty           numeric(12,2) not null check (qty > 0),  -- cartons * carton_qty + loose
   unit_price    numeric(12,2) not null check (unit_price >= 0),
   line_total    numeric(14,2) not null,
-  sort_order    integer not null default 0
+  sort_order    integer not null default 0,
+  return_of_item uuid references public.invoice_items(id)  -- return lines: the sold line they give back
 );
 create index invoice_items_invoice_idx on public.invoice_items (invoice_id);
+create index invoice_items_return_of_idx on public.invoice_items (return_of_item) where return_of_item is not null;
 create index invoice_items_product_idx on public.invoice_items (product_id);
 
 -- ---------- Receipts (money from customers; negative = refund) ----------
@@ -604,6 +608,8 @@ $$;
 
 -- ---------- create_invoice(): sale or return, stock + account in one transaction ----------
 -- p_items: [{ "product_id": "...", "location_id": "...", "cartons": 2, "loose": 0, "unit_price": 450 }, ...]
+-- A return against a sale invoice (p_return_of) sends "return_item_id" (the sold line) instead of
+-- product and rate; both are taken from the original bill.
 create or replace function public.create_invoice(
   p_customer_id    uuid,
   p_items          jsonb,
@@ -616,7 +622,8 @@ create or replace function public.create_invoice(
   p_freight        numeric default 0,
   p_received       numeric default 0,
   p_notes          text    default null,
-  p_cheque_image   text    default null
+  p_cheque_image   text    default null,
+  p_return_of      uuid    default null
 )
 returns uuid
 language plpgsql
@@ -659,6 +666,42 @@ begin
   perform 1 from customers where id = p_customer_id for update;
   if not found then
     raise exception 'Customer not found';
+  end if;
+
+  -- Return against a sale invoice: same customer, only items from that bill at the billed rate,
+  -- and never more than was sold minus what earlier returns already gave back
+  if p_return_of is not null then
+    if p_txn_type <> 'return' then
+      raise exception 'Only a return can be made against an invoice';
+    end if;
+    perform 1 from invoices where id = p_return_of and txn_type = 'sale' and customer_id = p_customer_id for update;
+    if not found then
+      raise exception 'The original sale invoice was not found for this customer';
+    end if;
+    if exists (select 1 from jsonb_array_elements(p_items) t(i)
+                left join invoice_items it on it.id = nullif(t.i->>'return_item_id', '')::uuid and it.invoice_id = p_return_of
+               where it.id is null) then
+      raise exception 'Every returned item must come from the original invoice';
+    end if;
+    select jsonb_agg(t.i || jsonb_build_object('product_id', it.product_id, 'unit_price', it.unit_price) order by t.ord)
+      into p_items
+      from jsonb_array_elements(p_items) with ordinality t(i, ord)
+      join invoice_items it on it.id = (t.i->>'return_item_id')::uuid;
+
+    select string_agg(format('%s (only %s %s left to return)', o.product_name, trim_scale(o.qty - o.done), o.unit), ', ') into v_bad
+      from (select it.product_name, it.unit, it.qty,
+                   coalesce((select sum(r.qty) from invoice_items r where r.return_of_item = it.id), 0) as done,
+                   sum(x.cartons * p.carton_qty + x.loose) as now_qty
+              from private.parse_lines(p_items) x
+              join invoice_items it on it.id = (p_items->(x.ord - 1)->>'return_item_id')::uuid
+              join products p on p.id = x.product_id
+             group by it.id, it.product_name, it.unit, it.qty) o
+     where o.done + o.now_qty > o.qty;
+    if v_bad is not null then
+      raise exception 'More than was sold: %', v_bad;
+    end if;
+  elsif p_txn_type = 'return' and not public.has_permission('price.override') then
+    raise exception 'Choose the invoice this return is for. Only a manager can make a return without an invoice.';
   end if;
   perform 1 from products where id in (select product_id from private.parse_lines(p_items)) order by id for update;
 
@@ -718,18 +761,19 @@ begin
 
   select coalesce(sum(debit - credit), 0) into v_prev from customer_ledger where customer_id = p_customer_id;
 
-  insert into invoices (company_id, customer_id, invoice_date, txn_type, payment_mode, delivery_mode, bilty_no, cheque_image,
+  insert into invoices (company_id, customer_id, invoice_date, txn_type, payment_mode, delivery_mode, bilty_no, cheque_image, return_of,
                         subtotal, discount, freight, total, prev_balance, received, notes, created_by)
   values (v_company.id, p_customer_id, v_date, p_txn_type, p_payment_mode, p_delivery_mode, nullif(trim(p_bilty_no), ''),
-          case when p_payment_mode = 'cheque' then trim(p_cheque_image) end,
+          case when p_payment_mode = 'cheque' then trim(p_cheque_image) end, p_return_of,
           v_subtotal, p_discount, p_freight, v_total, v_prev, p_received, nullif(trim(p_notes), ''), auth.uid())
   returning id, invoice_no into v_id, v_no;
 
   insert into invoice_items (invoice_id, product_id, product_name, unit, location_id, carton_qty,
-                             cartons, loose, qty, unit_price, line_total, sort_order)
+                             cartons, loose, qty, unit_price, line_total, sort_order, return_of_item)
   select v_id, p.id, p.name, p.unit, x.location_id, p.carton_qty,
          x.cartons, x.loose, x.cartons * p.carton_qty + x.loose, x.unit_price,
-         round((x.cartons * p.carton_qty + x.loose) * x.unit_price, 2), x.ord
+         round((x.cartons * p.carton_qty + x.loose) * x.unit_price, 2), x.ord,
+         case when p_return_of is not null then (p_items->(x.ord - 1)->>'return_item_id')::uuid end
     from private.parse_lines(p_items) x join products p on p.id = x.product_id;
 
   insert into stock_moves (product_id, location_id, qty, move_date, kind, invoice_id, created_by)
@@ -1343,13 +1387,13 @@ $$;
 revoke execute on function public.save_product(jsonb) from public, anon;
 revoke execute on function public.import_products(jsonb, uuid) from public, anon;
 revoke execute on function public.post_stock_entry(text, uuid, jsonb, uuid, date, text) from public, anon;
-revoke execute on function public.create_invoice(uuid, jsonb, date, text, text, text, text, numeric, numeric, numeric, text, text) from public, anon;
+revoke execute on function public.create_invoice(uuid, jsonb, date, text, text, text, text, numeric, numeric, numeric, text, text, uuid) from public, anon;
 revoke execute on function public.price_history(uuid, uuid, integer) from public, anon;
 revoke execute on function public.get_dashboard() from public, anon;
 grant execute on function public.save_product(jsonb) to authenticated;
 grant execute on function public.import_products(jsonb, uuid) to authenticated;
 grant execute on function public.post_stock_entry(text, uuid, jsonb, uuid, date, text) to authenticated;
-grant execute on function public.create_invoice(uuid, jsonb, date, text, text, text, text, numeric, numeric, numeric, text, text) to authenticated;
+grant execute on function public.create_invoice(uuid, jsonb, date, text, text, text, text, numeric, numeric, numeric, text, text, uuid) to authenticated;
 grant execute on function public.price_history(uuid, uuid, integer) to authenticated;
 grant execute on function public.get_dashboard() to authenticated;
 grant execute on function public.is_active_user() to authenticated;

@@ -17,13 +17,15 @@ const navClass = ({ isActive }) => `site-nav-link ${isActive ? 'active' : ''}`
 
 export default function SiteLayout() {
   const [open, setOpen] = useState(false)
-  const { pathname } = useLocation()
+  const { pathname, hash } = useLocation()
 
-  // New page: close the mobile menu and start at the top
+  // New page: close the mobile menu and start at the top, or at the #section the link points to
   useEffect(() => {
     setOpen(false)
-    window.scrollTo(0, 0)
-  }, [pathname])
+    const target = hash && document.getElementById(hash.slice(1))
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    else window.scrollTo(0, 0)
+  }, [pathname, hash])
 
   return (
     <div className="site">
@@ -44,10 +46,6 @@ export default function SiteLayout() {
               <LogIn />
               Staff login
             </Link>
-            <a href={waLink()} target="_blank" rel="noopener noreferrer" className="site-btn site-btn-sm site-btn-wa hidden sm:inline-flex">
-              <WhatsAppIcon />
-              WhatsApp
-            </a>
             <button
               className="inline-grid h-10 w-10 place-items-center rounded-md text-ink-2 hover:bg-surface-2 lg:hidden"
               onClick={() => setOpen((o) => !o)}

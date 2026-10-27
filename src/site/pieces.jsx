@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, Clock, Mail, MapPin, Phone } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Clock, Mail, MapPin, Phone } from 'lucide-react'
 import { CATEGORIES, SHOP, waLink } from './siteInfo'
 
 const DEFAULT_TITLE = 'Royal Stationers | Wholesale stationery, Urdu Bazar Lahore'
@@ -19,6 +19,54 @@ export function usePageMeta(title, description) {
   }, [title, description])
 }
 
+function useReducedMotion() {
+  const [reduce, setReduce] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if (!mq) return
+    const onChange = () => setReduce(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return reduce
+}
+
+// Types each line, pauses, deletes it, moves to the next. Starts with the first line already written.
+export function Typewriter({ words }) {
+  const reduce = useReducedMotion()
+  const [index, setIndex] = useState(0)
+  const [length, setLength] = useState(words[0].length)
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    if (reduce) return
+    const word = words[index]
+    if (deleting && length === 0) {
+      setDeleting(false)
+      setIndex((i) => (i + 1) % words.length)
+      return
+    }
+    const done = !deleting && length === word.length
+    const t = setTimeout(
+      () => (done ? setDeleting(true) : setLength((l) => l + (deleting ? -1 : 1))),
+      done ? 2200 : deleting ? 22 : 55,
+    )
+    return () => clearTimeout(t)
+  }, [words, index, length, deleting, reduce])
+
+  // The longest line sits invisibly underneath, so the headline keeps its height while lines change
+  const longest = words.reduce((a, b) => (b.length > a.length ? b : a))
+  return (
+    <span className="typewriter" aria-hidden="true">
+      <span className="tw-sizer">{longest}</span>
+      <span className="tw-text">
+        {words[index].slice(0, length)}
+        <span className="tw-caret" />
+      </span>
+    </span>
+  )
+}
+
 // WhatsApp's own glyph (lucide has no brand icons)
 export function WhatsAppIcon({ className = '' }) {
   return (
@@ -28,7 +76,7 @@ export function WhatsAppIcon({ className = '' }) {
   )
 }
 
-export function WhatsAppButton({ text, children = 'Get rate list on WhatsApp', className = '' }) {
+export function WhatsAppButton({ text, children = 'Ask on WhatsApp', className = '' }) {
   return (
     <a href={waLink(text)} target="_blank" rel="noopener noreferrer" className={`site-btn site-btn-wa ${className}`}>
       <WhatsAppIcon />
@@ -37,55 +85,76 @@ export function WhatsAppButton({ text, children = 'Get rate list on WhatsApp', c
   )
 }
 
-// Every page opens on ruled notebook paper: eyebrow, serif headline, lead, actions, and a visual on the right
-export function PageHero({ eyebrow, title, lead, actions, aside, children }) {
+// Internal route, in-page anchor, or outside link: the card picks the right element
+function CardLink({ to, href, onClick, className, children }) {
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {children}
+      </button>
+    )
+  }
+  if (href) {
+    const external = /^https?:/.test(href)
+    return (
+      <a href={href} className={className} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+        {children}
+      </a>
+    )
+  }
   return (
-    <section className="ruled border-b border-line">
-      <div className="site-wrap grid items-center gap-12 pt-12 pb-16 md:pt-20 md:pb-24 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="site-eyebrow">{eyebrow}</span>
-            <span className="urdu text-[15px] text-ink-3" lang="ur" dir="rtl">
-              اردو بازار، لاہور
-            </span>
-          </div>
-          <h1 className="site-h1 mt-4 text-ink">{title}</h1>
-          {lead && <p className="site-lead mt-5">{lead}</p>}
-          {actions && <div className="mt-8 flex flex-wrap gap-3">{actions}</div>}
-          {children}
+    <Link to={to} className={className}>
+      {children}
+    </Link>
+  )
+}
+
+export function LinkCard({ icon: Icon, title, text, to, href, onClick }) {
+  return (
+    <CardLink to={to} href={href} onClick={onClick} className="site-card group">
+      <div className="flex items-start justify-between gap-3">
+        <span className="icon-tile">
+          <Icon size={22} />
+        </span>
+        <ArrowUpRight size={18} className="card-arrow text-ink-3 group-hover:text-primary" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[16px] font-semibold text-ink">{title}</div>
+        {text && <p className="mt-1 text-[14px] leading-snug text-ink-2 break-words">{text}</p>}
+      </div>
+    </CardLink>
+  )
+}
+
+// Every page opens the same way: eyebrow, a typed headline that cycles through the page's lines, lead, actions, then a row of cards
+export function PageHero({ eyebrow, lines, lead, actions, cards }) {
+  return (
+    <section className="border-b border-line bg-surface-2">
+      <div className="site-wrap pt-8 pb-12 md:pt-12 md:pb-16">
+        <div className="max-w-[48rem]">
+          <span className="site-eyebrow">{eyebrow}</span>
+          <h1 className="site-h1 mt-3 text-ink">
+            <span className="sr-only">{lines.join(' ')}</span>
+            <Typewriter words={lines} />
+          </h1>
+          {lead && <p className="site-lead mt-4">{lead}</p>}
+          {actions && <div className="mt-7 flex flex-wrap gap-3">{actions}</div>}
         </div>
-        {aside && <div className="relative min-w-0">{aside}</div>}
+        {cards && (
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 md:mt-10 lg:grid-cols-4">
+            {cards.map((c) => (
+              <LinkCard key={c.title} {...c} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   )
 }
 
-// The real shop photo, offset on a soft brand block
-export function ShopPhoto({ badge }) {
-  return (
-    <>
-      <div className="absolute -inset-3 translate-x-3 translate-y-3 rounded-xl bg-primary-soft md:-inset-4 md:translate-x-5 md:translate-y-5" aria-hidden="true" />
-      <figure className="relative overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-lg)]">
-        <img
-          src="/images/shop-shelves.webp"
-          alt="Shelves of calculators, pens, files and office stationery inside Royal Stationers, Urdu Bazar"
-          className="aspect-[4/3] w-full object-cover saturate-[0.88]"
-          width="1280"
-          height="960"
-        />
-      </figure>
-      {badge && (
-        <div className="absolute bottom-4 left-3 flex max-w-[85%] items-center gap-3 rounded-lg border border-line bg-surface px-4 py-3 shadow-[var(--shadow-lg)] md:bottom-8 md:-left-6">
-          {badge}
-        </div>
-      )}
-    </>
-  )
-}
-
 export function SectionHead({ eyebrow, title, text, action }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-6">
+    <div className="flex flex-wrap items-end justify-between gap-6 self-start">
       <div className="max-w-[40rem]">
         <p className="site-eyebrow">{eyebrow}</p>
         <h2 className="site-h2 mt-3 text-ink">{title}</h2>
@@ -96,30 +165,25 @@ export function SectionHead({ eyebrow, title, text, action }) {
   )
 }
 
+// Department cards with photos; each opens that department on the Products page
 export function CategoryGrid({ limit }) {
   const list = limit ? CATEGORIES.slice(0, limit) : CATEGORIES
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {list.map(({ icon: Icon, name, text }) => (
-        <a
-          key={name}
-          href={waLink(`Assalam o Alaikum, mujhe ${name} ke wholesale rates chahiye.`)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="group flex flex-col gap-4 rounded-lg border border-line bg-surface p-5 shadow-[var(--shadow-sm)] transition-colors hover:border-ink-3"
-        >
-          <span className="icon-tile">
-            <Icon size={22} />
-          </span>
-          <span>
-            <span className="block text-[16px] font-semibold text-ink">{name}</span>
-            <span className="mt-1 block text-[14px] leading-snug text-ink-2">{text}</span>
-          </span>
-          <span className="mt-auto inline-flex items-center gap-1 text-[14px] font-medium text-primary">
-            Ask for rates
-            <ArrowUpRight size={16} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </span>
-        </a>
+      {list.map((c) => (
+        <Link key={c.slug} to={`/products?d=${c.slug}`} className="site-card group">
+          <div className="site-card-media">
+            <img src={c.image} alt={c.name} loading="lazy" width="960" height="720" />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="text-[16px] font-semibold text-ink">{c.name}</span>
+            <span className="mt-1 text-[14px] leading-snug text-ink-2">{c.text}</span>
+            <span className="mt-4 inline-flex items-center gap-1 text-[14px] font-medium text-primary">
+              View department
+              <ArrowRight size={16} className="card-arrow" />
+            </span>
+          </div>
+        </Link>
       ))}
     </div>
   )
@@ -136,7 +200,7 @@ export function ContactList() {
     <dl className="grid gap-6">
       {rows.map(({ icon: Icon, label, value, href, note }) => (
         <div key={label} className="flex gap-4">
-          <span className="icon-tile w-10 h-10">
+          <span className="icon-tile h-10 w-10">
             <Icon size={20} />
           </span>
           <div className="min-w-0">
@@ -171,7 +235,7 @@ export function MapEmbed({ className = '' }) {
   )
 }
 
-export function CtaBand({ title = 'Opening a shop or restocking for the season?', text = 'Send us your list on WhatsApp. We reply with rates and stock the same day.' }) {
+export function CtaBand({ title = 'Opening a shop or restocking for the season?', text = 'Send us your list and we reply with rates and stock the same day.' }) {
   return (
     <section className="bg-night">
       <div className="site-wrap flex flex-col gap-6 py-14 md:flex-row md:items-center md:gap-10 md:py-16">
@@ -180,9 +244,12 @@ export function CtaBand({ title = 'Opening a shop or restocking for the season?'
           <p className="mt-3 text-night-text">{text}</p>
         </div>
         <div className="flex flex-wrap gap-3 md:ml-auto">
-          <WhatsAppButton>Message {SHOP.phone}</WhatsAppButton>
-          <Link to="/contact" className="site-btn border-white/20 text-night-strong hover:border-white/50">
-            Visit the shop
+          <Link to="/contact" className="site-btn bg-white text-ink hover:bg-white/90">
+            Send your list
+            <ArrowRight />
+          </Link>
+          <Link to="/products" className="site-btn border-white/25 text-night-strong hover:border-white/60">
+            Browse products
           </Link>
         </div>
       </div>

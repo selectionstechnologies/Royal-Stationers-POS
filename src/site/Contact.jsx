@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Map as MapIcon, Navigation, Send } from 'lucide-react'
+import { Clock, Mail, Map as MapIcon, MapPin, MessageCircle, Navigation, Phone, Send } from 'lucide-react'
 import { SHOP, waLink } from './siteInfo'
-import { ContactList, MapEmbed, PageHero, WhatsAppButton, WhatsAppIcon, usePageMeta } from './pieces'
+import { MapEmbed, PageHero, WhatsAppIcon, usePageMeta } from './pieces'
 
 const EMPTY = { name: '', shop: '', city: '', message: '' }
 
@@ -12,23 +12,35 @@ export default function Contact() {
     <>
       <PageHero
         eyebrow="Contact"
-        title="Visit the shop or send your list."
-        lead={`Shop #22, First Floor, Bashir Center, Urdu Bazar. Or message ${SHOP.phone} on WhatsApp and we reply with rates the same day.`}
+        lines={['Visit the shop or send your list.', 'Call, message or email us.', 'We reply with rates the same day.']}
+        lead="Shop #22, First Floor, Bashir Center, Urdu Bazar, Lahore. Send your list on WhatsApp and we reply with rates the same day."
         actions={
           <>
-            <WhatsAppButton>Message on WhatsApp</WhatsAppButton>
+            <a href="#enquiry" className="site-btn site-btn-primary">
+              <Send />
+              Send an enquiry
+            </a>
             <a href={SHOP.directionsUrl} target="_blank" rel="noopener noreferrer" className="site-btn site-btn-outline">
               <Navigation />
               Get directions
             </a>
           </>
         }
-        aside={
-          <div className="rounded-xl border border-line bg-surface p-6 shadow-[var(--shadow-lg)] sm:p-7">
-            <ContactList />
-          </div>
-        }
+        cards={[
+          { icon: MapPin, title: 'Address', text: SHOP.addressShort, href: SHOP.mapUrl },
+          { icon: Phone, title: SHOP.phone, text: 'Call the shop', href: `tel:+${SHOP.phoneIntl}` },
+          { icon: MessageCircle, title: 'WhatsApp', text: 'Send your list or ask for rates', href: waLink() },
+          { icon: Mail, title: 'Email', text: SHOP.email, href: `mailto:${SHOP.email}` },
+        ]}
       />
+
+      <div className="border-b border-line bg-surface">
+        <div className="site-wrap flex flex-wrap items-center gap-x-3 gap-y-1 py-4 text-[15px] text-ink-2">
+          <Clock size={18} className="text-primary" />
+          <span className="font-medium text-ink">{SHOP.hours}</span>
+          <span>{SHOP.hoursNote}</span>
+        </div>
+      </div>
 
       <section className="bg-surface-2">
         <div className="site-wrap grid items-start gap-10 py-16 md:py-24 lg:grid-cols-[1.15fr_1fr] lg:gap-12">
@@ -72,7 +84,7 @@ function EnquiryForm() {
   }
 
   return (
-    <form onSubmit={submit} className="rounded-xl border border-line bg-surface p-6 shadow-[var(--shadow)] sm:p-7">
+    <form id="enquiry" onSubmit={submit} className="scroll-mt-24 rounded-xl border border-line bg-surface p-6 shadow-[var(--shadow)] sm:p-7">
       <h2 className="font-serif text-[26px] font-semibold text-ink">Send an enquiry</h2>
       <p className="mt-2 text-[15px] text-ink-2">Your message opens in WhatsApp, ready to send to {SHOP.phone}.</p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2">

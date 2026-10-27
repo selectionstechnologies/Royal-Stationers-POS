@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, BookUser, Boxes, FileText, Map as MapIcon, MessageSquareText, Navigation, PackageCheck, ReceiptText, Star, Truck, Warehouse } from 'lucide-react'
-import { BRANDS, SHOP, waLink } from './siteInfo'
-import { CategoryGrid, ContactList, CtaBand, MapEmbed, PageHero, SectionHead, ShopPhoto, WhatsAppButton, usePageMeta } from './pieces'
+import { ArrowRight, BookUser, Boxes, LayoutGrid, Map as MapIcon, MapPin, MessageSquareText, Navigation, PackageCheck, ReceiptText, Star, Truck, Warehouse } from 'lucide-react'
+import { BRANDS, SHOP } from './siteInfo'
+import { CategoryGrid, ContactList, CtaBand, LinkCard, MapEmbed, PageHero, SectionHead, usePageMeta } from './pieces'
 
 const WHY = [
-  { icon: Boxes, title: 'Carton and loose rates', text: 'Buy full cartons at the best rate, or mix loose pieces to fill a small order.' },
-  { icon: Truck, title: 'Bilty to any city', text: 'Orders are packed and handed to the transport you choose, with the bilty number sent on WhatsApp.' },
-  { icon: Warehouse, title: 'Ready stock', text: 'Stock is kept at the shop and our godown, so most orders leave the same day.' },
-  { icon: BookUser, title: 'Accounts for regular shops', text: 'Regular customers get a ledger account with a clear record of every bill and payment.' },
+  { icon: Boxes, title: 'Carton and loose rates', text: 'Buy full cartons at the best rate, or mix loose pieces to fill a small order.', to: '/wholesale#rates' },
+  { icon: Truck, title: 'Bilty to any city', text: 'Orders are packed and handed to the transport you choose, with the bilty number sent on WhatsApp.', to: '/wholesale#delivery' },
+  { icon: Warehouse, title: 'Ready stock', text: 'Stock is kept at the shop and our godown, so most orders leave the same day.', to: '/products' },
+  { icon: BookUser, title: 'Accounts for regular shops', text: 'Regular customers get a ledger account with a clear record of every bill and payment.', to: '/wholesale#accounts' },
 ]
 
 const STEPS = [
@@ -31,51 +31,27 @@ export default function Home() {
   return (
     <>
       <PageHero
-        eyebrow="Wholesale stationery supplier"
-        title="Stationery for your shop, by the carton."
-        lead="Office and school stationery for shopkeepers, schools and offices across Pakistan. Carton and loose rates, ready stock in Urdu Bazar, and bilty to any city."
+        eyebrow="Wholesale stationery, Urdu Bazar Lahore"
+        lines={['Welcome to Royal Stationers.', 'Stationery by the carton for every shop.', 'Wholesale rates for schools and offices.', 'Bilty delivery to any city in Pakistan.']}
+        lead="Office and school stationery for shopkeepers, schools and offices across Pakistan. Carton and loose rates, ready stock, and bilty to any city."
         actions={
           <>
-            <WhatsAppButton />
-            <Link to="/products" className="site-btn site-btn-outline">
-              Browse categories
+            <Link to="/products" className="site-btn site-btn-primary">
+              Browse products
               <ArrowRight />
+            </Link>
+            <Link to="/contact" className="site-btn site-btn-outline">
+              Send your list
             </Link>
           </>
         }
-        aside={
-          <ShopPhoto
-            badge={
-              <>
-                <span className="icon-tile h-10 w-10">
-                  <Truck size={20} />
-                </span>
-                <span className="min-w-0 leading-tight">
-                  <span className="block text-[14px] font-semibold text-ink">Bilty to any city</span>
-                  <span className="block text-[13px] text-ink-2">Packed by carton, sent same day</span>
-                </span>
-              </>
-            }
-          />
-        }
-      >
-        <dl className="mt-10 grid max-w-[32rem] grid-cols-3 gap-6 border-t border-line pt-6">
-          <div>
-            <dt className="text-[13px] text-ink-3">Google rating</dt>
-            <dd className="mt-1 flex items-center gap-1.5 text-[17px] font-semibold leading-tight text-ink sm:text-[19px]">
-              {SHOP.rating} <Star size={16} className="fill-current text-warning" />
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[13px] text-ink-3">Rates</dt>
-            <dd className="mt-1 text-[17px] font-semibold leading-tight text-ink sm:text-[19px]">Carton + loose</dd>
-          </div>
-          <div>
-            <dt className="text-[13px] text-ink-3">Delivery</dt>
-            <dd className="mt-1 text-[17px] font-semibold leading-tight text-ink sm:text-[19px]">All Pakistan</dd>
-          </div>
-        </dl>
-      </PageHero>
+        cards={[
+          { icon: LayoutGrid, title: '8 departments', text: 'Calculators, pens, files, notebooks and more', to: '/products' },
+          { icon: Boxes, title: 'Carton and loose rates', text: 'Full cartons or mixed loose pieces', to: '/wholesale#rates' },
+          { icon: Truck, title: 'Bilty to all Pakistan', text: 'Packed by carton, number on WhatsApp', to: '/wholesale#delivery' },
+          { icon: Star, title: `Rated ${SHOP.rating} on Google`, text: 'See reviews and the shop on Maps', href: SHOP.mapUrl },
+        ]}
+      />
 
       <section className="border-b border-line">
         <div className="site-wrap flex flex-col gap-4 py-7 md:flex-row md:items-center md:gap-10">
@@ -92,13 +68,13 @@ export default function Home() {
       </section>
 
       <section className="border-b border-line bg-surface-2">
-        <div className="site-wrap py-16 md:py-24">
+        <div className="site-wrap py-16 md:py-20">
           <SectionHead
             eyebrow="What we supply"
             title="Everything a stationery shop keeps on its shelves."
             action={
               <Link to="/products" className="site-btn site-btn-outline">
-                All categories
+                All products
                 <ArrowRight />
               </Link>
             }
@@ -110,34 +86,28 @@ export default function Home() {
       </section>
 
       <section className="border-b border-line">
-        <div className="site-wrap grid gap-12 py-16 md:py-24 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
-          <div>
+        <div className="site-wrap grid gap-12 py-16 md:py-20 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
+          <div className="self-start">
             <p className="site-eyebrow">Why shops buy from us</p>
             <h2 className="site-h2 mt-3 text-ink">Built for resellers, not walk-in shoppers.</h2>
             <p className="mt-5 max-w-[32rem] text-ink-2">
               Most of our customers are stationery shops, bookshops, schools and offices who reorder every week. Everything is set up to make that quick.
             </p>
-            <a href={waLink("Assalam o Alaikum, mujhe is mahine ki rate list chahiye.")} target="_blank" rel="noopener noreferrer" className="site-btn site-btn-primary mt-8">
-              <FileText />
-              Ask for this month's rate list
-            </a>
+            <Link to="/wholesale" className="site-btn site-btn-primary mt-8">
+              How wholesale works
+              <ArrowRight />
+            </Link>
           </div>
-          <div className="grid gap-x-10 gap-y-10 sm:grid-cols-2">
-            {WHY.map(({ icon: Icon, title, text }) => (
-              <div key={title} className="flex flex-col gap-3">
-                <span className="icon-tile">
-                  <Icon size={22} />
-                </span>
-                <h3 className="text-[18px] text-ink">{title}</h3>
-                <p className="text-[15px] text-ink-2">{text}</p>
-              </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {WHY.map((w) => (
+              <LinkCard key={w.title} {...w} />
             ))}
           </div>
         </div>
       </section>
 
       <section className="border-b border-line bg-surface-2">
-        <div className="site-wrap py-16 md:py-24">
+        <div className="site-wrap py-16 md:py-20">
           <SectionHead eyebrow="How to order" title="Send your list. We handle the rest." />
           <ol className="mt-12 grid gap-4 md:grid-cols-3">
             {STEPS.map(({ icon: Icon, title, text }, i) => (
@@ -157,13 +127,17 @@ export default function Home() {
       </section>
 
       <section>
-        <div className="site-wrap grid items-start gap-10 py-16 md:py-24 lg:grid-cols-2 lg:gap-16">
+        <div className="site-wrap grid items-start gap-10 py-16 md:py-20 lg:grid-cols-2 lg:gap-16">
           <div className="min-w-0">
             <p className="site-eyebrow">Visit the shop</p>
             <h2 className="site-h2 mt-3 text-ink">First floor, Bashir Center, Urdu Bazar.</h2>
             <div className="mt-8">
               <ContactList />
             </div>
+            <Link to="/contact" className="site-btn site-btn-outline mt-8">
+              <MapPin />
+              Contact page
+            </Link>
           </div>
           <VisitCard />
         </div>

@@ -347,7 +347,8 @@ function RecentInvoices({ rows, showBy, title = 'Recent invoices', subtitle = 'L
           }
         />
       ) : (
-        <table className="table">
+        <div className="table-scroll">
+        <table className="table table-compact recent-table">
           <thead>
             <tr>
               <th>Inv #</th>
@@ -363,20 +364,28 @@ function RecentInvoices({ rows, showBy, title = 'Recent invoices', subtitle = 'L
               <tr key={inv.id} className="row-link" onClick={() => navigate(`/app/invoices/${inv.id}`)}>
                 <td className="strong">{inv.invoice_no}</td>
                 <td>
-                  {inv.customer_name}
-                  {inv.customer_city && <span className="text-muted"> · {inv.customer_city}</span>}
-                  <span className="text-muted show-sm"> · {formatDate(inv.invoice_date)}</span>
+                  <div className="cell-stack">
+                    <span>{inv.customer_name}</span>
+                    <span className="text-muted">
+                      {inv.customer_city}
+                      <span className="show-sm">
+                        {inv.customer_city && ' · '}
+                        {formatDate(inv.invoice_date)}
+                      </span>
+                    </span>
+                  </div>
                 </td>
                 <td className="text-secondary nowrap hide-sm">{formatDate(inv.invoice_date)}</td>
                 {showBy && <td className="text-secondary hide-sm">{inv.created_by_name ?? '—'}</td>}
-                <td>
+                <td className="nowrap">
                   <TxnBadge type={inv.txn_type} mode={inv.payment_mode} />
                 </td>
-                <td className="num strong">{money(inv.total)}</td>
+                <td className="num strong nowrap">{money(inv.total)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   )
