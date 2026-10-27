@@ -5,6 +5,7 @@ import { METHOD_LABELS, money, today } from '../lib/format'
 import { customerLabel } from '../lib/customerFields'
 import { ErrorBanner, Field, Modal } from './ui'
 import { CustomerSearch } from './Pickers'
+import DateInput from './DateInput'
 
 // Money received from a customer. Pass `customer` to fix it, or `customers` to choose one.
 export default function ReceiptModal({ customer: fixed, customers = [], balances, onClose, onSaved }) {
@@ -61,7 +62,7 @@ export default function ReceiptModal({ customer: fixed, customers = [], balances
                 {balance !== null && <span className="text-muted">Balance {money(balance)}</span>}
                 {!fixed && (
                   <button type="button" className="icon-btn" onClick={() => setCustomer(null)} aria-label="Change customer">
-                    <X size={15} />
+                    <X size={16} />
                   </button>
                 )}
               </div>
@@ -74,7 +75,7 @@ export default function ReceiptModal({ customer: fixed, customers = [], balances
           <input className="input input-num" inputMode="decimal" autoFocus={Boolean(fixed)} value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
         <Field label="Date">
-          <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateInput value={date} onChange={setDate} />
         </Field>
         <Field label="Method">
           <div className="segmented segmented-fill">

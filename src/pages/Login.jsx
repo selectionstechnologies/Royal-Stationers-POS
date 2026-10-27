@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Boxes, Check, Eye, EyeOff, Lock, Mail, ReceiptText, Wallet } from 'lucide-react'
 import { useAuth } from '../auth/AuthProvider'
 import { getRemember, getRememberedEmail, setRemember, setRememberedEmail } from '../lib/supabase'
@@ -17,7 +17,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const from = location.state?.from?.pathname || '/'
+  const from = location.state?.from?.pathname || '/app'
   if (!loading && user) return <Navigate to={from} replace />
 
   async function handleSubmit(e) {
@@ -59,7 +59,10 @@ export default function Login() {
           </ul>
         </div>
 
-        <div className="login-foot">© {new Date().getFullYear()} Royal Stationers</div>
+        <div className="login-foot">
+          © {new Date().getFullYear()} Royal Stationers
+          <Link to="/" className="login-site-link">Back to website</Link>
+        </div>
       </section>
 
       <section className="login-main">
@@ -69,6 +72,7 @@ export default function Login() {
           </div>
           <h1>Welcome back</h1>
           <p className="text-secondary">Sign in to your account to continue.</p>
+          <Link to="/" className="back-link login-back">Back to website</Link>
 
           <ErrorBanner message={error} />
 

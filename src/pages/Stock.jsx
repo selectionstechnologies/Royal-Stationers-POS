@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeftRight, Boxes, History, PackageMinus, PackagePlus, Search } from 'lucide-react'
-import { listLocations, listProducts, listStockLevels } from '../lib/api'
+import { listLocations, listOnTheWay, listProducts, listStockLevels } from '../lib/api'
 import { num, qtyText, splitQty } from '../lib/format'
 import { EMPTY_STOCK, matchesWords, stockIndex } from '../lib/stock'
 import { EmptyState, ErrorBanner, Loading, Modal, PageHeader } from '../components/ui'
@@ -13,16 +13,19 @@ const SHOW_OPTIONS = [
   { value: 'stock', label: 'In stock' },
   { value: 'low', label: 'Low' },
   { value: 'negative', label: 'Below zero' },
+  { value: 'way', label: 'On the way', permission: 'containers.view' },
   { value: 'all', label: 'All' },
 ]
 
 export default function Stock() {
   const { can } = useAuth()
   const canManage = can('stock.manage')
+  const showWay = can('containers.view')
   const [params, setParams] = useSearchParams()
   const [products, setProducts] = useState(null)
   const [stock, setStock] = useState({})
   const [locations, setLocations] = useState([])
+  const [onWay, setOnWay] = useState({}) // { [product_id]: qty } in containers on the way
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
   const [viewing, setViewing] = useState(null) // product whose per-store stock is shown
@@ -40,14 +43,15 @@ export default function Stock() {
     )
 
   useEffect(() => {
-    Promise.all([listProducts(), listStockLevels(), listLocations()])
-      .then(([p, levels, locs]) => {
+    Promise.all([listProducts(), listStockLevels(), listLocations(), showWay ? listOnTheWay() : {}])
+      .then(([p, levels, locs, way]) => {
         setProducts(p)
         setStock(stockIndex(levels))
         setLocations(locs.filter((l) => l.active))
+        setOnWay(way)
       })
       .catch((e) => setError(e.message))
-  }, [])
+  }, [showWay])
 
   const store = locationId ? locations.find((l) => l.id === locationId) : null
 
@@ -57,11 +61,12 @@ export default function Stock() {
       const s = stock[p.id] ?? EMPTY_STOCK
       const qty = locationId ? (s.byLocation[locationId] ?? 0) : s.total
       if (show === 'stock' && qty === 0) return false
+      if (show === 'way' && !(onWay[p.id] > 0)) return false
       if (show === 'low' && !(Number(p.reorder_level) > 0 && s.total <= Number(p.reorder_level))) return false
       if (show === 'negative' && !(locationId ? qty < 0 : Object.values(s.byLocation).some((v) => v < 0))) return false
       return matchesWords(q, p.code, p.name, p.company, p.category)
     })
-  }, [products, stock, show, locationId, q])
+  }, [products, stock, onWay, show, locationId, q])
 
   return (
     <>
@@ -71,13 +76,13 @@ export default function Stock() {
         actions={
           canManage && (
             <>
-              <Link to="/stock/new?kind=transfer" className="btn btn-secondary">
+              <Link to="/app/stock/new?kind=transfer" className="btn btn-secondary">
                 <ArrowLeftRight size={16} /> Transfer
               </Link>
-              <Link to="/stock/new?kind=out" className="btn btn-secondary">
+              <Link to="/app/stock/new?kind=out" className="btn btn-secondary">
                 <PackageMinus size={16} /> Stock out
               </Link>
-              <Link to="/stock/new?kind=in" className="btn btn-primary">
+              <Link to="/app/stock/new?kind=in" className="btn btn-primary">
                 <PackagePlus size={16} /> Stock in
               </Link>
             </>
@@ -102,7 +107,7 @@ export default function Stock() {
             ))}
           </select>
           <div className="segmented">
-            {SHOW_OPTIONS.map((o) => (
+            {SHOW_OPTIONS.filter((o) => !o.permission || can(o.permission)).map((o) => (
               <button key={o.value} className={show === o.value ? 'active' : ''} onClick={() => setParam('show', o.value === 'stock' ? '' : o.value)}>
                 {o.label}
               </button>
@@ -128,6 +133,7 @@ export default function Stock() {
                   <th>Product</th>
                   {store && <th className="num">{store.name}</th>}
                   <th className="num">{store ? 'All stores' : 'Total'}</th>
+                  {showWay && <th className="num">On the way</th>}
                 </tr>
               </thead>
               <tbody>
@@ -148,6 +154,11 @@ export default function Stock() {
                       </td>
                       {store && <QtyCell qty={s.byLocation[store.id] ?? 0} p={p} />}
                       <QtyCell qty={s.total} p={p} />
+                      {showWay && (
+                        <td className={`num ${onWay[p.id] ? 'text-info' : 'text-muted'}`}>
+                          {onWay[p.id] ? qtyText(onWay[p.id], p.unit, p.carton_qty, { short: true }) : '—'}
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
@@ -155,7 +166,7 @@ export default function Stock() {
               {rows.length > SHOW_MAX && (
                 <tfoot>
                   <tr>
-                    <td colSpan={store ? 3 : 2} className="text-secondary">
+                    <td colSpan={2 + (store ? 1 : 0) + (showWay ? 1 : 0)} className="text-secondary">
                       Showing the first {SHOW_MAX} of {num(rows.length)}. Search or filter to narrow down.
                     </td>
                   </tr>
@@ -190,7 +201,7 @@ function StoreStockModal({ product: p, stock: s, locations, onClose }) {
       onClose={onClose}
       footer={
         <>
-          <Link to={`/products/${p.id}/ledger`} className="btn btn-secondary">
+          <Link to={`/app/products/${p.id}/ledger`} className="btn btn-secondary">
             <History size={16} /> Stock history
           </Link>
           <button className="btn btn-primary" onClick={onClose}>

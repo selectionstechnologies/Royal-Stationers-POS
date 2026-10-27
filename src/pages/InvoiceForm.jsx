@@ -10,6 +10,7 @@ import { CustomerSearch, ProductSearch } from '../components/Pickers'
 import { CustomerModal } from '../components/RecordModals'
 import ChequeModal from '../components/ChequeModal'
 import { useAuth } from '../auth/AuthProvider'
+import DateInput from '../components/DateInput'
 
 const n = (v) => Number(String(v ?? '').replace(/,/g, '')) || 0
 
@@ -189,7 +190,7 @@ export default function InvoiceForm() {
         notes,
         chequeFile,
       })
-      navigate(`/invoices/${id}`, { replace: true })
+      navigate(`/app/invoices/${id}`, { replace: true })
     } catch (e) {
       setError(e.message)
       setSaving(false)
@@ -204,8 +205,8 @@ export default function InvoiceForm() {
     <>
       <div className="page-header">
         <div>
-          <Link to="/invoices" className="back-link">
-            <ArrowLeft size={15} /> Sale invoices
+          <Link to="/app/invoices" className="back-link">
+            <ArrowLeft size={16} /> Sale invoices
           </Link>
           <h1>{isSale ? 'New sale invoice' : 'New sale return'}</h1>
         </div>
@@ -222,7 +223,7 @@ export default function InvoiceForm() {
                 <span className="strong">{customerLabel(customer)}</span>
                 <span className="text-muted">#{customer.code}</span>
                 <button type="button" className="icon-btn" onClick={() => setCustomer(null)} aria-label="Change customer">
-                  <X size={15} />
+                  <X size={16} />
                 </button>
               </div>
             ) : (
@@ -237,7 +238,7 @@ export default function InvoiceForm() {
                   }}
                 />
                 <button type="button" className="btn btn-secondary" onClick={() => setAddingCustomer(true)}>
-                  <Plus size={15} /> New
+                  <Plus size={16} /> New
                 </button>
               </div>
             )}
@@ -245,7 +246,7 @@ export default function InvoiceForm() {
         </div>
         <div className="invoice-head-date">
           <Field label="Date">
-            <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput value={date} onChange={setDate} />
           </Field>
         </div>
         <Field label="Type">
@@ -273,7 +274,7 @@ export default function InvoiceForm() {
         {paymentMode === 'cheque' && (
           <Field label="Cheque photo">
             <button type="button" className="btn btn-secondary cheque-btn" onClick={() => setChequeOpen(true)} title={chequeFile?.name}>
-              <Camera size={15} /> <span>{chequeFile ? chequeFile.name : 'Add photo'}</span>
+              <Camera size={16} /> <span>{chequeFile ? chequeFile.name : 'Add photo'}</span>
             </button>
           </Field>
         )}

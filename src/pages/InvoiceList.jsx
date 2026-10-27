@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Plus, ReceiptText, Search } from 'lucide-react'
-import { findInvoiceId, listInvoices } from '../lib/api'
-import { DELIVERY_LABELS, formatDate, money, monthStart, today } from '../lib/format'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Download, Plus, ReceiptText, Search, UserRound, X } from 'lucide-react'
+import { findInvoiceId, listCustomers, listInvoices } from '../lib/api'
+import { DATE_PRESETS, DELIVERY_LABELS, PAYMENT_LABELS, TXN_LABELS, formatDate, money, monthStart, today } from '../lib/format'
+import { customerLabel } from '../lib/customerFields'
+import { downloadCsv, slug } from '../lib/csv'
 import { matchesWords } from '../lib/stock'
 import { EmptyState, ErrorBanner, Loading, PageHeader, TxnBadge } from '../components/ui'
-import { DateRange } from '../components/Pickers'
+import { CustomerSearch, DateRange } from '../components/Pickers'
 import { useAuth } from '../auth/AuthProvider'
 
 const FILTERS = [
@@ -22,7 +24,11 @@ export default function InvoiceList() {
   const navigate = useNavigate()
   const { can } = useAuth()
   const showBy = can('reports')
-  const [range, setRange] = useState({ from: monthStart(), to: today() })
+  const [params, setParams] = useSearchParams()
+  const customerId = params.get('customer') ?? ''
+  // Opened for one customer (from their ledger): show all their invoices, not just this month
+  const [range, setRange] = useState(() => (customerId ? { from: '', to: '' } : { from: monthStart(), to: today() }))
+  const [customers, setCustomers] = useState([])
   const [rows, setRows] = useState(null)
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
@@ -30,9 +36,28 @@ export default function InvoiceList() {
   const [goNo, setGoNo] = useState('')
 
   useEffect(() => {
+    listCustomers().then(setCustomers).catch((e) => setError(e.message))
+  }, [])
+
+  useEffect(() => {
     setRows(null)
-    listInvoices(range).then(setRows).catch((e) => setError(e.message))
-  }, [range])
+    listInvoices({ ...range, customerId }).then(setRows).catch((e) => setError(e.message))
+  }, [range, customerId])
+
+  const customer = customers.find((c) => c.id === customerId) ?? null
+  const setCustomer = (c) =>
+    setParams(
+      (p) => {
+        if (c) p.set('customer', c.id)
+        else p.delete('customer')
+        return p
+      },
+      { replace: true },
+    )
+  const preset = DATE_PRESETS.find((p) => {
+    const r = p.range()
+    return r.from === range.from && r.to === range.to
+  })?.value
 
   const filtered = useMemo(
     () =>
@@ -46,6 +71,26 @@ export default function InvoiceList() {
 
   const total = filtered.reduce((s, r) => s + net(r), 0)
 
+  function exportCsv() {
+    const header = ['Invoice', 'Date', 'Customer', 'City', 'Type', 'Payment', 'Delivery', 'Bilty', 'Amount', 'Received', ...(showBy ? ['By'] : [])]
+    const body = filtered.map((r) => [
+      r.invoice_no,
+      r.invoice_date,
+      r.customers?.name,
+      r.customers?.city,
+      TXN_LABELS[r.txn_type],
+      r.txn_type === 'sale' ? PAYMENT_LABELS[r.payment_mode] : '',
+      DELIVERY_LABELS[r.delivery_mode],
+      r.bilty_no,
+      net(r),
+      Number(r.received),
+      ...(showBy ? [r.created_by_name] : []),
+    ])
+    const who = customer ? slug(customerLabel(customer)) : 'all'
+    const when = range.from || range.to ? `${range.from || 'start'}-to-${range.to || today()}` : 'all-dates'
+    downloadCsv(`invoices-${who}-${when}.csv`, [header, ...body, [], ['Total', '', '', '', '', '', '', '', total]])
+  }
+
   async function goTo(e) {
     e.preventDefault()
     const no = Number(goNo)
@@ -53,7 +98,7 @@ export default function InvoiceList() {
     setError('')
     try {
       const id = await findInvoiceId(no)
-      if (id) navigate(`/invoices/${id}`)
+      if (id) navigate(`/app/invoices/${id}`)
       else setError(`Invoice #${no} was not found.`)
     } catch (err) {
       setError(err.message)
@@ -71,7 +116,7 @@ export default function InvoiceList() {
               <input className="input" inputMode="numeric" placeholder="Invoice #" value={goNo} onChange={(e) => setGoNo(e.target.value)} aria-label="Open invoice number" />
               <button className="btn btn-secondary">Open</button>
             </form>
-            <Link to="/invoices/new" className="btn btn-primary">
+            <Link to="/app/invoices/new" className="btn btn-primary">
               <Plus size={16} /> New sale
             </Link>
           </>
@@ -86,7 +131,27 @@ export default function InvoiceList() {
             <Search size={16} />
             <input className="input" placeholder="Search invoice #, customer, city or bilty" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
+          <div className="toolbar-customer">
+            {customer ? (
+              <div className="picked">
+                <UserRound size={16} />
+                <span className="strong">{customerLabel(customer)}</span>
+                <button type="button" className="icon-btn" onClick={() => setCustomer(null)} aria-label="Show all customers">
+                  <X size={15} />
+                </button>
+              </div>
+            ) : (
+              <CustomerSearch customers={customers} onPick={setCustomer} />
+            )}
+          </div>
           <DateRange {...range} onChange={setRange} />
+          <div className="segmented">
+            {DATE_PRESETS.map((p) => (
+              <button key={p.value} className={preset === p.value ? 'active' : ''} onClick={() => setRange(p.range())}>
+                {p.label}
+              </button>
+            ))}
+          </div>
           <div className="segmented">
             {FILTERS.map((f) => (
               <button key={f.value} className={filter === f.value ? 'active' : ''} onClick={() => setFilter(f.value)}>
@@ -94,18 +159,21 @@ export default function InvoiceList() {
               </button>
             ))}
           </div>
+          <button className="btn btn-secondary btn-sm" onClick={exportCsv} disabled={!filtered.length} title="Download as a CSV file for Excel">
+            <Download size={16} /> Excel
+          </button>
         </div>
 
         {!rows && !error && <Loading />}
         {rows && filtered.length === 0 && (
           <EmptyState
             icon={rows.length ? Search : ReceiptText}
-            title={rows.length ? 'No matches' : 'No invoices in these dates'}
-            text={rows.length ? 'Try a different search or filter.' : 'Change the dates, or create a new sale.'}
+            title={rows.length ? 'No matches' : customer ? `No invoices for ${customerLabel(customer)} in these dates` : 'No invoices in these dates'}
+            text={rows.length ? 'Try a different search or filter.' : customer ? 'Try "All" dates.' : 'Change the dates, or create a new sale.'}
             action={
               !rows.length && (
-                <Link to="/invoices/new" className="btn btn-primary btn-sm">
-                  <Plus size={15} /> New sale
+                <Link to="/app/invoices/new" className="btn btn-primary btn-sm">
+                  <Plus size={16} /> New sale
                 </Link>
               )
             }
@@ -127,7 +195,7 @@ export default function InvoiceList() {
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.id} className="row-link" onClick={() => navigate(`/invoices/${r.id}`)}>
+                <tr key={r.id} className="row-link" onClick={() => navigate(`/app/invoices/${r.id}`)}>
                   <td className="strong">{r.invoice_no}</td>
                   <td className="text-secondary nowrap">{formatDate(r.invoice_date)}</td>
                   <td>

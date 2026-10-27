@@ -60,7 +60,7 @@ export function EmptyState({ icon: Icon, title, text, action }) {
     <div className="empty">
       {Icon && (
         <div className="empty-icon">
-          <Icon size={22} strokeWidth={1.8} />
+          <Icon size={20} strokeWidth={1.8} />
         </div>
       )}
       <div className="empty-title">{title}</div>

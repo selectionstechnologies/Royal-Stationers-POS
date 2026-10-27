@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Trash2 } from 'lucide-react'
-import { deleteCustomer, deleteProduct, listLookups, saveCustomer, saveProduct } from '../lib/api'
+import { deleteCustomer, deleteProduct, deleteSupplier, listLookups, saveCustomer, saveProduct, saveSupplier } from '../lib/api'
+import { CURRENCIES } from '../lib/format'
 import { CUSTOMER_FIELDS, EMPTY_CUSTOMER, customerRow, validateCustomer } from '../lib/customerFields'
 import { EMPTY_PRODUCT, PRODUCT_FIELDS, productForm, validateProduct } from '../lib/productFields'
 import { useAuth } from '../auth/AuthProvider'
@@ -63,7 +64,7 @@ function RecordModal({ title, initial, fields, save, remove, validate, suggestio
         <>
           {isEdit && remove && (
             <button type="button" className="btn btn-danger-ghost mr-auto" onClick={handleDelete} disabled={busy}>
-              <Trash2 size={15} /> Delete
+              <Trash2 size={16} /> Delete
             </button>
           )}
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
@@ -175,6 +176,37 @@ export function ProductModal({ product, existing = [], ...props }) {
       validate={(f) => validateProduct(f, existing)}
       save={saveProduct}
       remove={can('delete') ? deleteProduct : null}
+      {...props}
+    />
+  )
+}
+
+const SUPPLIER_FIELDS = [
+  { key: 'name', label: 'Name', required: true, autoFocus: true, full: true, placeholder: 'e.g. Yiwu Ruya Trade' },
+  { key: 'country', label: 'Country', placeholder: 'e.g. China' },
+  { key: 'city', label: 'City', placeholder: 'e.g. Yiwu' },
+  { key: 'contact_person', label: 'Contact person' },
+  { key: 'phone', label: 'Phone / WeChat', type: 'tel' },
+  { key: 'email', label: 'Email', type: 'email' },
+  { key: 'currency', label: 'Currency', required: true, options: CURRENCIES },
+  { key: 'notes', label: 'Notes', textarea: true, full: true },
+]
+
+const EMPTY_SUPPLIER = { ...Object.fromEntries(SUPPLIER_FIELDS.map(({ key }) => [key, ''])), currency: 'USD' }
+
+export function SupplierModal({ supplier, ...props }) {
+  const { can } = useAuth()
+  const initial = supplier
+    ? Object.fromEntries([['id', supplier.id], ...SUPPLIER_FIELDS.map(({ key }) => [key, supplier[key] ?? ''])])
+    : EMPTY_SUPPLIER
+  const row = (f) => Object.fromEntries(SUPPLIER_FIELDS.map(({ key }) => [key, String(f[key] ?? '').trim() || null]))
+  return (
+    <RecordModal
+      title="supplier"
+      initial={initial}
+      fields={SUPPLIER_FIELDS}
+      save={(form) => saveSupplier(row(form), form.id)}
+      remove={can('delete') ? deleteSupplier : null}
       {...props}
     />
   )

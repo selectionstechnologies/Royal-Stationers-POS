@@ -40,7 +40,7 @@ export default function InvoiceDetail() {
     setError('')
     try {
       await deleteInvoice(doc.id)
-      navigate('/invoices', { replace: true })
+      navigate('/app/invoices', { replace: true })
     } catch (e) {
       setError(e.message)
       setBusy(false)
@@ -67,8 +67,8 @@ export default function InvoiceDetail() {
     <>
       <div className="page-header no-print">
         <div>
-          <Link to="/invoices" className="back-link">
-            <ArrowLeft size={15} /> Sale invoices
+          <Link to="/app/invoices" className="back-link">
+            <ArrowLeft size={16} /> Sale invoices
           </Link>
           <div className="title-row">
             <h1>
@@ -94,7 +94,7 @@ export default function InvoiceDetail() {
           <button className="btn btn-secondary" onClick={() => window.print()}>
             <Printer size={16} /> Print / PDF
           </button>
-          <Link to="/invoices/new" className="btn btn-primary">
+          <Link to="/app/invoices/new" className="btn btn-primary">
             <Plus size={16} /> New sale
           </Link>
         </div>

@@ -11,7 +11,7 @@ export const ROLES = [
   {
     value: 'manager',
     label: 'Manager',
-    text: 'Sales, returns, receipts, customers, products, stock and all reports. No users, settings or deleting.',
+    text: 'Sales, returns, receipts, customers, products, stock, containers and all reports. No users, settings or deleting.',
   },
   {
     value: 'cashier',
@@ -21,7 +21,7 @@ export const ROLES = [
   {
     value: 'storekeeper',
     label: 'Store keeper',
-    text: 'Stock in, stock out and transfers. Sees products and stock only, no sales or customer accounts.',
+    text: 'Stock in, stock out, transfers and receiving containers. No prices, sales or customer accounts.',
   },
 ]
 
@@ -34,7 +34,11 @@ const PERMISSIONS = {
   'products.manage': ['admin', 'manager'], // add, edit and import products
   'stock.manage': ['admin', 'manager', 'storekeeper'], // stock in / out / transfer
   reports: ['admin', 'manager'], // business-wide dashboard and who-did-what
-  delete: ['admin'], // invoices, receipts, stock entries, customers, products
+  costs: ['admin', 'manager'], // cost prices, container prices, expenses and landed cost
+  'containers.view': ['admin', 'manager', 'storekeeper'], // containers and packing lists (no prices)
+  'containers.manage': ['admin', 'manager'], // create and edit containers and suppliers
+  'containers.receive': ['admin', 'manager', 'storekeeper'], // receive a container into stores
+  delete: ['admin'], // invoices, receipts, stock entries, customers, products, containers; reopen a received container
   users: ['admin'],
   settings: ['admin'],
 }

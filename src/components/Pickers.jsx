@@ -3,6 +3,7 @@ import { ChevronDown, Search, X } from 'lucide-react'
 import { matchesWords } from '../lib/stock'
 import { money, qtyText } from '../lib/format'
 import { customerLabel } from '../lib/customerFields'
+import DateInput from './DateInput'
 
 const MAX_RESULTS = 40
 
@@ -78,7 +79,7 @@ const SearchBox = forwardRef(function SearchBox({ items, filter, render, onPick,
         />
         {q ? (
           <button type="button" className="input-suffix" onClick={() => setQ('')} aria-label="Clear">
-            <X size={15} />
+            <X size={16} />
           </button>
         ) : (
           browse && (
@@ -188,9 +189,9 @@ export function CustomerSearch({ customers, balances, onPick, autoFocus }) {
 export function DateRange({ from, to, onChange }) {
   return (
     <div className="date-range">
-      <input type="date" className="input" value={from} max={to} onChange={(e) => onChange({ from: e.target.value, to })} aria-label="From date" />
+      <DateInput value={from} max={to} onChange={(v) => onChange({ from: v, to })} aria-label="From date" />
       <span className="text-muted">to</span>
-      <input type="date" className="input" value={to} min={from} onChange={(e) => onChange({ from, to: e.target.value })} aria-label="To date" />
+      <DateInput value={to} min={from} onChange={(v) => onChange({ from, to: v })} aria-label="To date" />
     </div>
   )
 }

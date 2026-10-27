@@ -27,6 +27,14 @@ export const addDays = (days) => {
   return toISODate(d)
 }
 
+// Quick date ranges for list filters. Blank = no limit.
+export const DATE_PRESETS = [
+  { value: 'month', label: 'This month', range: () => ({ from: monthStart(), to: today() }) },
+  { value: '3m', label: '3 months', range: () => ({ from: addDays(-90), to: today() }) },
+  { value: 'year', label: 'This year', range: () => ({ from: `${new Date().getFullYear()}-01-01`, to: today() }) },
+  { value: 'all', label: 'All', range: () => ({ from: '', to: '' }) },
+]
+
 export const monthStart = () => {
   const d = new Date()
   return toISODate(new Date(d.getFullYear(), d.getMonth(), 1))
@@ -81,6 +89,18 @@ export const PAYMENT_LABELS = { credit: 'Credit', cash: 'Cash', cheque: 'Cheque'
 export const DELIVERY_LABELS = { counter: 'Counter', bilty: 'Bilty', delivery: 'Delivery' }
 export const METHOD_LABELS = { cash: 'Cash', bank: 'Bank', cheque: 'Cheque' }
 export const ENTRY_LABELS = { opening: 'Opening stock', in: 'Stock in', out: 'Stock out', transfer: 'Transfer' }
+
+// Container status, in order. Shipped, at port and clearing count as "on the way".
+export const CONTAINER_STATUSES = [
+  { value: 'ordered', label: 'Ordered', date: 'order_date', tone: 'status-neutral' },
+  { value: 'shipped', label: 'Shipped', date: 'shipped_date', tone: 'status-info' },
+  { value: 'at_port', label: 'At port', date: 'port_date', tone: 'status-info' },
+  { value: 'clearing', label: 'Clearing', date: 'clearing_date', tone: 'status-warning' },
+  { value: 'received', label: 'Received', date: 'received_date', tone: 'status-good' },
+]
+export const ON_THE_WAY = ['shipped', 'at_port', 'clearing']
+export const CURRENCIES = ['USD', 'RMB', 'PKR']
+export const COST_BASIS_LABELS = { cbm: 'By CBM (space)', value: 'By value', cartons: 'By cartons' }
 
 // Preview only - the database recalculates these when saving.
 export function computeInvoice(items, discount, freight) {

@@ -8,6 +8,8 @@ function unwrap({ data, error }) {
       if (/products_name/i.test(error.message)) throw new Error('A product with this name already exists.')
       if (/customers_name_city/i.test(error.message)) throw new Error('A customer with this name already exists in this city.')
       if (/locations_name/i.test(error.message)) throw new Error('A store with this name already exists.')
+      if (/containers_no/i.test(error.message)) throw new Error('A container with this number already exists.')
+      if (/suppliers_name/i.test(error.message)) throw new Error('A supplier with this name already exists.')
       throw new Error('This record already exists.')
     }
     if (error.code === '23503') throw new Error('This record is used in invoices or stock entries, so it cannot be deleted.')
@@ -43,8 +45,8 @@ export async function getDefaultCompany() {
   )
 }
 
-export async function saveCompany({ id, name, address, phone, email, ntn, strn, allow_negative_stock }) {
-  const row = { name, address, phone, email, ntn, strn, allow_negative_stock: Boolean(allow_negative_stock) }
+export async function saveCompany({ id, name, address, phone, email, ntn, strn, allow_negative_stock, default_margin }) {
+  const row = { name, address, phone, email, ntn, strn, allow_negative_stock: Boolean(allow_negative_stock), default_margin: Number(default_margin) || 0 }
   if (id) return unwrap(await supabase.from('companies').update(row).eq('id', id).select().single())
   return unwrap(await supabase.from('companies').insert({ ...row, is_default: true }).select().single())
 }
@@ -61,13 +63,15 @@ export async function saveLocation({ id, name, sort_order, active }) {
 
 // ---------- Products ----------
 
-const PRODUCT_SELECT = '*, product_companies(name), brands(name), categories(name)'
+// product_costs is readable only with the 'costs' permission; for everyone else it comes back null
+const PRODUCT_SELECT = '*, product_companies(name), brands(name), categories(name), product_costs(cost_price)'
 
-const flattenProduct = ({ product_companies, brands, categories, ...p }) => ({
+const flattenProduct = ({ product_companies, brands, categories, product_costs, ...p }) => ({
   ...p,
   company: product_companies?.name ?? '',
   brand: brands?.name ?? '',
   category: categories?.name ?? '',
+  cost_price: product_costs?.cost_price ?? null,
 })
 
 export async function listProducts() {
@@ -163,7 +167,8 @@ export async function getProductLedger(productId) {
       .select(
         `id, qty, move_date, kind, created_at, location_id,
          invoices(id, invoice_no, customers(name, city)),
-         stock_entries(id, entry_no, note, location_id, to_location_id)`,
+         stock_entries(id, entry_no, note, location_id, to_location_id),
+         containers(id, container_no)`,
       )
       .eq('product_id', productId)
       .order('move_date')
@@ -250,15 +255,17 @@ export async function deleteReceipt(id) {
 
 // ---------- Invoices ----------
 
-export async function listInvoices({ from, to }) {
-  const rows = await selectAll(() =>
-    supabase
+// Blank from / to = no limit on that side. `customerId` narrows to one customer.
+export async function listInvoices({ from, to, customerId }) {
+  const rows = await selectAll(() => {
+    let query = supabase
       .from('invoices')
       .select('id, invoice_no, invoice_date, txn_type, payment_mode, delivery_mode, bilty_no, total, received, created_by, customers(id, name, city), creator:profiles(name)')
-      .gte('invoice_date', from)
-      .lte('invoice_date', to)
-      .order('invoice_no', { ascending: false }),
-  )
+    if (from) query = query.gte('invoice_date', from)
+    if (to) query = query.lte('invoice_date', to)
+    if (customerId) query = query.eq('customer_id', customerId)
+    return query.order('invoice_no', { ascending: false })
+  })
   return rows.map((r) => ({ ...r, created_by_name: r.creator?.name ?? null }))
 }
 
@@ -272,6 +279,18 @@ export async function getInvoice(id) {
       .single(),
   )
   return { ...doc, items: doc.invoice_items, created_by_name: doc.creator?.name ?? null }
+}
+
+// Every line this customer bought or returned, oldest first
+export async function listCustomerItems(customerId) {
+  const rows = await selectAll(() =>
+    supabase
+      .from('invoice_items')
+      .select('id, product_id, product_name, unit, carton_qty, qty, unit_price, line_total, invoices!inner(id, invoice_no, invoice_date, txn_type, customer_id)')
+      .eq('invoices.customer_id', customerId)
+      .order('id'),
+  )
+  return rows.sort((a, b) => a.invoices.invoice_date.localeCompare(b.invoices.invoice_date) || a.invoices.invoice_no - b.invoices.invoice_no)
 }
 
 // Invoice numbers are unique, so this finds at most one
@@ -326,6 +345,88 @@ export async function deleteInvoice(id) {
 
 export async function getPriceHistory(customerId, productId) {
   return unwrap(await supabase.rpc('price_history', { p_customer_id: customerId, p_product_id: productId, p_limit: 5 }))
+}
+
+// ---------- Suppliers ----------
+
+export async function listSuppliers() {
+  return selectAll(() => supabase.from('suppliers').select('*').order('name').order('id'))
+}
+
+export async function saveSupplier(row, id) {
+  if (id) return unwrap(await supabase.from('suppliers').update(row).eq('id', id).select().single())
+  return unwrap(await supabase.from('suppliers').insert(row).select().single())
+}
+
+export async function deleteSupplier(id) {
+  return unwrap(await supabase.from('suppliers').delete().eq('id', id))
+}
+
+// ---------- Containers ----------
+// Prices and expenses are in separate tables that only the 'costs' permission can read;
+// `withCosts` asks for them (without the permission they come back empty).
+
+export async function listContainers() {
+  return selectAll(() =>
+    supabase
+      .from('containers')
+      .select('*, supplier:suppliers(name), container_items(cartons, qty, cbm, weight)')
+      .order('order_date', { ascending: false })
+      .order('id'),
+  )
+}
+
+export async function getContainer(id, { withCosts = false } = {}) {
+  const items = withCosts ? 'container_items(*, container_item_prices(*))' : 'container_items(*)'
+  const doc = unwrap(
+    await supabase
+      .from('containers')
+      .select(`*, supplier:suppliers(id, name), ${items}${withCosts ? ', container_expenses(*)' : ''}`)
+      .eq('id', id)
+      .order('sort_order', { referencedTable: 'container_items' })
+      .single(),
+  )
+  const { container_items, container_expenses, ...rest } = doc
+  return {
+    ...rest,
+    items: container_items.map(({ container_item_prices: price, ...it }) => ({ ...it, price: price ?? null })),
+    expenses: [...(container_expenses ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+  }
+}
+
+// Returns the container id
+export async function saveContainer(form) {
+  return unwrap(await supabase.rpc('save_container', { p: form }))
+}
+
+// lines: [{ item_id, location_id, cartons, loose }]
+export async function receiveContainer(id, lines, date) {
+  return unwrap(await supabase.rpc('receive_container', { p_container_id: id, p_lines: lines, p_date: date }))
+}
+
+export async function reopenContainer(id) {
+  return unwrap(await supabase.rpc('reopen_container', { p_container_id: id }))
+}
+
+export async function deleteContainer(id) {
+  return unwrap(await supabase.from('containers').delete().eq('id', id))
+}
+
+// { [product_id]: qty } of goods in containers that are shipped, at port or clearing
+export async function listOnTheWay() {
+  const rows = await selectAll(() => supabase.from('product_on_the_way').select('product_id, qty').order('product_id'))
+  return Object.fromEntries(rows.map((r) => [r.product_id, Number(r.qty)]))
+}
+
+// Containers that carry this product, newest first
+export async function getProductContainers(productId) {
+  const rows = unwrap(
+    await supabase
+      .from('container_items')
+      .select('qty, received_qty, containers(id, container_no, status, eta, order_date, received_date)')
+      .eq('product_id', productId),
+  )
+  return rows.filter((r) => r.containers).sort((a, b) => (b.containers.order_date ?? '').localeCompare(a.containers.order_date ?? ''))
 }
 
 // ---------- Dashboard ----------

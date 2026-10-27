@@ -88,11 +88,27 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 5. `npm run dev`, then Settings → business details, stores
 
 ## Phase 2 – Purchase & imports (after client review)
-- [ ] Suppliers + supplier ledger, payments (A-02, A-04)
+
+### Containers – Level 1 (built 27 Oct 2026)
+- [x] Suppliers list (name, country, contact, currency)
+- [x] Container record: number, supplier, invoice/PI no., currency + exchange rate (PI-03)
+- [x] Packing list: cartons, qty/ctn, loose, CBM, weight, price; CSV import that matches products and can create missing ones (PI-04)
+- [x] Status with dates: Ordered → Shipped → At port → Clearing → Received, ETA, shipping line, B/L (PI-05)
+- [x] Expenses + landed cost per piece, shared by CBM / value / cartons; suggested sale price from Settings margin (PI-06, PI-08)
+- [x] "On the way" stock on Stock, product ledger and dashboard (PI-07, S-08)
+- [x] Receive into stores (split a product over stores, short quantities recorded), container locked after receiving
+- [x] Product cost price (separate table, admin/manager only), average cost updated on receiving
+- [x] Admin can reopen a received container (stock removed, costs restored) unless the stock is already sold
+- [x] Store keeper sees containers and receives them, without prices; cashier sees nothing
+- [x] Database tested on Postgres (PGlite): roles, landed cost, average cost, receive, reopen, upgrade path
+- Existing databases: run `supabase/upgrade_003_containers.sql` once, **before** deploying this frontend
+
+### Still to do
+- [ ] Container-wise remaining stock and profit (Level 2)
+- [ ] Supplier ledger, payments (A-02, A-04)
 - [ ] Local purchase invoice (PI-01), purchase return **(client)**
-- [ ] Container record, packing list import, status tracking (PI-03 … PI-05)
-- [ ] Landed cost + "On the Way" stock (PI-06, PI-07, S-08)
 - [ ] Profit report, container report (R-07, R-10)
+- [ ] Attach documents (B/L, invoice PDF) to a container
 
 ## Phase 3 – Extras (client to choose)
 - [ ] Granular permissions per screen (SEC-02 improved), activity log (SEC-04)
@@ -107,5 +123,6 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 - [ ] Data transfer from old MIS (products, customers, balances, stock) (M-01)
 - [ ] Set invoice number to continue after the old software (`setval`)
 - [ ] Run `supabase/upgrade_002_four_roles.sql` on the production database (once)
+- [ ] Run `supabase/upgrade_003_containers.sql` on the production database (once, after 002)
 - [ ] Deploy `admin-users` Edge Function (needed for the new roles)
 - [ ] Parallel run + staff training (M-03, M-04)

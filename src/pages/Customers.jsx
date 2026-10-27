@@ -72,7 +72,7 @@ export default function Customers() {
             text="Add a customer to start billing."
             action={
               <button className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>
-                <Plus size={15} /> Add customer
+                <Plus size={16} /> Add customer
               </button>
             }
           />
@@ -95,7 +95,7 @@ export default function Customers() {
                 const bal = balances[c.id] ?? 0
                 const over = Number(c.credit_limit) > 0 && bal > Number(c.credit_limit)
                 return (
-                  <tr key={c.id} className="row-link" onClick={() => navigate(`/customers/${c.id}`)}>
+                  <tr key={c.id} className="row-link" onClick={() => navigate(`/app/customers/${c.id}`)}>
                     <td className="mono text-secondary hide-sm">{c.code}</td>
                     <td>
                       <div className="cell-stack">
@@ -132,7 +132,7 @@ export default function Customers() {
           onClose={() => setAdding(false)}
           onSaved={(c) => {
             setAdding(false)
-            navigate(`/customers/${c.id}`)
+            navigate(`/app/customers/${c.id}`)
           }}
         />
       )}

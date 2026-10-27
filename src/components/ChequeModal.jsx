@@ -77,7 +77,7 @@ export default function ChequeModal({ file: initial, onClose, onDone }) {
         ) : (
           <>
             <div className="empty-icon">
-              <Camera size={22} strokeWidth={1.8} />
+              <Camera size={20} strokeWidth={1.8} />
             </div>
             <div className="strong">Drop the cheque photo here, or click to choose</div>
             <div className="text-muted">JPG, PNG or WEBP · up to 5 MB</div>

@@ -8,6 +8,7 @@ import { EmptyState, ErrorBanner, Loading } from '../components/ui'
 import { CustomerModal } from '../components/RecordModals'
 import ReceiptModal from '../components/ReceiptModal'
 import { useAuth } from '../auth/AuthProvider'
+import DateInput from '../components/DateInput'
 
 const KIND_LABELS = { opening: 'Opening', sale: 'Sale', return: 'Return', receipt: 'Receipt' }
 
@@ -63,7 +64,7 @@ export default function CustomerLedger() {
   if (!customer || !view) return error ? <ErrorBanner message={error} /> : <Loading />
 
   const refLink = (e) => {
-    if (e.kind === 'sale' || e.kind === 'return') return <Link to={`/invoices/${e.ref_id}`} className="link">Inv #{e.ref_no}</Link>
+    if (e.kind === 'sale' || e.kind === 'return') return <Link to={`/app/invoices/${e.ref_id}`} className="link">Inv #{e.ref_no}</Link>
     if (e.kind === 'receipt') return `Rcpt #${e.ref_no}`
     return '—'
   }
@@ -74,8 +75,8 @@ export default function CustomerLedger() {
     <>
       <div className="page-header no-print">
         <div>
-          <Link to="/customers" className="back-link">
-            <ArrowLeft size={15} /> Customers
+          <Link to="/app/customers" className="back-link">
+            <ArrowLeft size={16} /> Customers
           </Link>
           <h1>Customer ledger</h1>
         </div>
@@ -91,7 +92,7 @@ export default function CustomerLedger() {
           <button className="btn btn-secondary" onClick={() => setModal('receipt')}>
             <HandCoins size={16} /> Receive payment
           </button>
-          <Link to={`/invoices/new?customer=${customer.id}`} className="btn btn-primary">
+          <Link to={`/app/invoices/new?customer=${customer.id}`} className="btn btn-primary">
             <Plus size={16} /> New sale
           </Link>
         </div>
@@ -123,9 +124,9 @@ export default function CustomerLedger() {
       <div className="card card-flush">
         <div className="toolbar no-print">
           <div className="date-range">
-            <input type="date" className="input" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label="From date" />
+            <DateInput value={from} max={to || undefined} onChange={setFrom} aria-label="From date" />
             <span className="text-muted">to</span>
-            <input type="date" className="input" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
+            <DateInput value={to} min={from || undefined} onChange={setTo} aria-label="To date" />
           </div>
           {(from || to) && (
             <button className="btn btn-ghost btn-sm" onClick={() => (setFrom(''), setTo(''))}>
@@ -195,7 +196,7 @@ export default function CustomerLedger() {
             setModal(null)
             load()
           }}
-          onDeleted={() => navigate('/customers', { replace: true })}
+          onDeleted={() => navigate('/app/customers', { replace: true })}
         />
       )}
       {modal === 'receipt' && (

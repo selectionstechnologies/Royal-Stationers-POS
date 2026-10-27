@@ -17,15 +17,16 @@ export const PRODUCT_FIELDS = [
   { key: 'min_price', label: 'Min price (Rs)', type: 'number', placeholder: '0' },
   { key: 'max_price', label: 'Max price (Rs)', type: 'number', placeholder: '0 = no maximum' },
   { key: 'cbm', label: 'C.B.M (per carton)', type: 'number', placeholder: '0' },
+  { key: 'cost_price', label: 'Cost price (Rs)', type: 'number', placeholder: 'Set by containers', hint: 'Average landed cost per unit. Updated when a container is received.' },
   { key: 'description', label: 'Description', textarea: true, full: true, placeholder: 'Size, colour, packing… (optional)' },
 ]
 
 export const EMPTY_PRODUCT = {
   name: '', code: '', unit: 'Pc', company: '', brand: '', category: '',
-  carton_qty: '1', inner_qty: '', reorder_level: '', price: '', min_price: '', max_price: '', cbm: '', description: '',
+  carton_qty: '1', inner_qty: '', reorder_level: '', price: '', min_price: '', max_price: '', cbm: '', cost_price: '', description: '',
 }
 
-const NUMERIC = ['carton_qty', 'inner_qty', 'reorder_level', 'price', 'min_price', 'max_price', 'cbm']
+const NUMERIC = ['carton_qty', 'inner_qty', 'reorder_level', 'price', 'min_price', 'max_price', 'cbm', 'cost_price']
 
 // Names and codes are compared ignoring case and surrounding spaces
 export const normKey = (v) => String(v ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
@@ -46,7 +47,9 @@ export const productPayload = (f) => ({
   brand: String(f.brand ?? '').trim(),
   category: String(f.category ?? '').trim(),
   description: String(f.description ?? '').trim(),
-  ...Object.fromEntries(NUMERIC.map((k) => [k, k === 'carton_qty' ? toNumber(f[k]) || 1 : toNumber(f[k])])),
+  ...Object.fromEntries(NUMERIC.filter((k) => k !== 'cost_price').map((k) => [k, k === 'carton_qty' ? toNumber(f[k]) || 1 : toNumber(f[k])])),
+  // Left out when blank, so saving a product never wipes its cost
+  ...(String(f.cost_price ?? '').trim() !== '' ? { cost_price: toNumber(f.cost_price) } : {}),
   ...(f.stock !== undefined ? { stock: toNumber(f.stock) } : {}),
 })
 
@@ -122,6 +125,7 @@ const HEADER_ALIASES = {
   max_price: ['max', 'max price', 'max_price'],
   reorder_level: ['reorder', 'reorder level', 'reorder_level'],
   cbm: ['cbm', 'c.b.m'],
+  cost_price: ['cost', 'cost price', 'cost_price', 'purchase price'],
   stock: ['stock', 'opening stock', 'qty', 'quantity'],
   description: ['description', 'details', 'desc'],
 }

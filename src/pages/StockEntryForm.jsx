@@ -6,6 +6,7 @@ import { ENTRY_LABELS, qtyText, toQty, today } from '../lib/format'
 import { stockIndex } from '../lib/stock'
 import { ErrorBanner, Field, Loading } from '../components/ui'
 import { ProductSearch } from '../components/Pickers'
+import DateInput from '../components/DateInput'
 
 const KINDS = ['in', 'out', 'transfer', 'opening']
 
@@ -88,7 +89,7 @@ export default function StockEntryForm() {
         note,
         items: lines.map((l) => ({ product_id: l.product.id, cartons: l.cartons, loose: l.loose })),
       })
-      navigate('/stock/entries', { replace: true, state: { notice: `${ENTRY_LABELS[kind]} saved.` } })
+      navigate('/app/stock/entries', { replace: true, state: { notice: `${ENTRY_LABELS[kind]} saved.` } })
     } catch (e) {
       setError(e.message)
       setSaving(false)
@@ -99,8 +100,8 @@ export default function StockEntryForm() {
     <>
       <div className="page-header">
         <div>
-          <Link to="/stock/entries" className="back-link">
-            <ArrowLeft size={15} /> Stock entries
+          <Link to="/app/stock/entries" className="back-link">
+            <ArrowLeft size={16} /> Stock entries
           </Link>
           <h1>New {ENTRY_LABELS[kind].toLowerCase()}</h1>
         </div>
@@ -120,7 +121,7 @@ export default function StockEntryForm() {
 
         <div className="form-grid form-grid-4">
           <Field label="Date">
-            <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput value={date} onChange={setDate} />
           </Field>
           <Field label={kind === 'transfer' ? 'From store' : 'Store'}>
             <select className="input" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
@@ -229,7 +230,7 @@ export default function StockEntryForm() {
           <span className="text-secondary mr-auto">
             {lines.length} product{lines.length === 1 ? '' : 's'}
           </span>
-          <Link to="/stock/entries" className="btn btn-secondary">
+          <Link to="/app/stock/entries" className="btn btn-secondary">
             Cancel
           </Link>
           <button className="btn btn-primary" disabled={!valid || saving} onClick={handleSave}>

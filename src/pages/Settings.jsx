@@ -5,7 +5,7 @@ import { ROLE_LABELS, initials } from '../lib/format'
 import { useAuth } from '../auth/AuthProvider'
 import { ErrorBanner, Field, Loading, PageHeader } from '../components/ui'
 
-const EMPTY = { name: '', address: '', phone: '', email: '', ntn: '', strn: '', allow_negative_stock: false }
+const EMPTY = { name: '', address: '', phone: '', email: '', ntn: '', strn: '', allow_negative_stock: false, default_margin: 0 }
 
 export default function Settings() {
   const { user, signOut } = useAuth()
@@ -79,6 +79,10 @@ export default function Settings() {
                     <textarea className="input" rows={2} value={form.address ?? ''} onChange={set('address')} />
                   </Field>
                 </div>
+                <Field label="Margin for suggested price (%)">
+                  <input className="input input-num" inputMode="decimal" value={form.default_margin ?? 0} onChange={set('default_margin')} />
+                  <span className="field-note">Containers suggest a sale price of landed cost + this margin.</span>
+                </Field>
                 <div className="span-all">
                   <label className="setting-row">
                     <input type="checkbox" checked={Boolean(form.allow_negative_stock)} onChange={set('allow_negative_stock')} />
@@ -95,7 +99,7 @@ export default function Settings() {
               <div className="card-actions">
                 {saved && (
                   <span className="saved-note">
-                    <CheckCircle2 size={15} /> Saved
+                    <CheckCircle2 size={16} /> Saved
                   </span>
                 )}
                 <button className="btn btn-primary" disabled={busy || !form.name?.trim()}>
@@ -171,7 +175,7 @@ function Locations() {
           onClick={() => setEditing({ name: '', sort_order: (rows?.length ?? 0) + 1, active: true })}
           disabled={!rows}
         >
-          <Plus size={15} /> Add
+          <Plus size={16} /> Add
         </button>
       </div>
       <ErrorBanner message={error} />
@@ -216,7 +220,7 @@ function Locations() {
                     {l.active ? 'Hide' : 'Show'}
                   </button>
                   <button className="icon-btn" onClick={() => setEditing({ ...l })} aria-label={`Rename ${l.name}`}>
-                    <Pencil size={15} />
+                    <Pencil size={16} />
                   </button>
                 </span>
               </li>

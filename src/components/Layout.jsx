@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   ArrowLeftRight,
   Boxes,
+  Factory,
   HandCoins,
   LayoutDashboard,
   LogOut,
@@ -11,6 +12,7 @@ import {
   ReceiptText,
   Settings as SettingsIcon,
   ShieldCheck,
+  Ship,
   Users,
   X,
 } from 'lucide-react'
@@ -19,28 +21,35 @@ import { ROLE_LABELS, initials } from '../lib/format'
 import { Logo } from './Logo'
 
 const NAV = [
-  { section: 'Overview', links: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true }] },
+  { section: 'Overview', links: [{ to: '/app', label: 'Dashboard', icon: LayoutDashboard, end: true }] },
   {
     section: 'Sales',
     links: [
-      { to: '/invoices', label: 'Sale invoices', icon: ReceiptText, permission: 'sales' },
-      { to: '/receipts', label: 'Receipts', icon: HandCoins, permission: 'sales' },
-      { to: '/customers', label: 'Customers', icon: Users, permission: 'sales' },
+      { to: '/app/invoices', label: 'Sale invoices', icon: ReceiptText, permission: 'sales' },
+      { to: '/app/receipts', label: 'Receipts', icon: HandCoins, permission: 'sales' },
+      { to: '/app/customers', label: 'Customers', icon: Users, permission: 'sales' },
     ],
   },
   {
     section: 'Stock',
     links: [
-      { to: '/products', label: 'Products', icon: Package },
-      { to: '/stock', label: 'Stock', icon: Boxes, end: true },
-      { to: '/stock/entries', label: 'Stock entries', icon: ArrowLeftRight, permission: 'stock.manage' },
+      { to: '/app/products', label: 'Products', icon: Package },
+      { to: '/app/stock', label: 'Stock', icon: Boxes, end: true },
+      { to: '/app/stock/entries', label: 'Stock entries', icon: ArrowLeftRight, permission: 'stock.manage' },
+    ],
+  },
+  {
+    section: 'Purchase',
+    links: [
+      { to: '/app/containers', label: 'Containers', icon: Ship, permission: 'containers.view' },
+      { to: '/app/suppliers', label: 'Suppliers', icon: Factory, permission: 'containers.manage' },
     ],
   },
   {
     section: 'Administration',
     links: [
-      { to: '/users', label: 'Users', icon: ShieldCheck, permission: 'users' },
-      { to: '/settings', label: 'Settings', icon: SettingsIcon, permission: 'settings' },
+      { to: '/app/users', label: 'Users', icon: ShieldCheck, permission: 'users' },
+      { to: '/app/settings', label: 'Settings', icon: SettingsIcon, permission: 'settings' },
     ],
   },
 ]
@@ -87,7 +96,7 @@ export default function Layout() {
             <div className="user-role">{ROLE_LABELS[user?.role] ?? user?.role}</div>
           </div>
           <button className="icon-btn" onClick={signOut} title="Sign out" aria-label="Sign out">
-            <LogOut size={17} />
+            <LogOut size={18} />
           </button>
         </div>
       </aside>

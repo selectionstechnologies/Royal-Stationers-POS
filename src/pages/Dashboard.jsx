@@ -15,6 +15,7 @@ import {
   PackageSearch,
   Plus,
   ReceiptText,
+  Ship,
   Users,
   Wallet,
 } from 'lucide-react'
@@ -23,7 +24,7 @@ import { compactMoney, formatDate, money, num, qtyText } from '../lib/format'
 import { EmptyState, ErrorBanner, Loading, PageHeader, TxnBadge } from '../components/ui'
 import { useAuth } from '../auth/AuthProvider'
 
-const SERIES = '#b8860b' // brand dark gold, validated: >= 3:1 on the card surface
+const SERIES = '#213a73' // brand royal ink (--chart), well above 3:1 on the card surface
 
 function greeting() {
   const h = new Date().getHours()
@@ -64,10 +65,10 @@ export default function Dashboard() {
 function HeaderActions() {
   return (
     <>
-      <Link to="/receipts?new=1" className="btn btn-secondary">
+      <Link to="/app/receipts?new=1" className="btn btn-secondary">
         <HandCoins size={16} /> Receive payment
       </Link>
-      <Link to="/invoices/new" className="btn btn-primary">
+      <Link to="/app/invoices/new" className="btn btn-primary">
         <Plus size={16} /> New sale
       </Link>
     </>
@@ -143,7 +144,7 @@ function AdminDashboard() {
               <RankCard
                 title="Highest balances"
                 subtitle="Customers who owe the most"
-                rows={data.top_receivables.map((r) => ({ name: r.city ? `${r.name} (${r.city})` : r.name, total: r.balance, to: `/customers/${r.id}` }))}
+                rows={data.top_receivables.map((r) => ({ name: r.city ? `${r.name} (${r.city})` : r.name, total: r.balance, to: `/app/customers/${r.id}` }))}
                 empty="No customer owes money"
               />
               <RankCard title="Top customers" subtitle="Last 30 days, by amount" rows={data.top_customers} empty="No sales in the last 30 days" />
@@ -161,20 +162,30 @@ function AdminDashboard() {
 }
 
 function StockAlerts({ data }) {
-  if (data.low_stock_count <= 0 && data.negative_count <= 0) return null
+  const way = data.containers?.on_the_way ?? 0
+  if (data.low_stock_count <= 0 && data.negative_count <= 0 && way <= 0) return null
   return (
     <div className="alert-row">
+      {way > 0 && (
+        <Link to="/app/containers" className="dash-alert info">
+          <Ship size={17} />
+          <span>
+            <b>{num(way)}</b> container{way === 1 ? ' is' : 's are'} on the way
+            {data.containers.next_eta && ` · next arrival ${formatDate(data.containers.next_eta)}`}
+          </span>
+        </Link>
+      )}
       {data.low_stock_count > 0 && (
-        <Link to="/stock?show=low" className="dash-alert warn">
-          <PackageSearch size={17} />
+        <Link to="/app/stock?show=low" className="dash-alert warn">
+          <PackageSearch size={18} />
           <span>
             <b>{num(data.low_stock_count)}</b> product{data.low_stock_count === 1 ? ' is' : 's are'} at or below reorder level
           </span>
         </Link>
       )}
       {data.negative_count > 0 && (
-        <Link to="/stock?show=negative" className="dash-alert critical">
-          <AlertTriangle size={17} />
+        <Link to="/app/stock?show=negative" className="dash-alert critical">
+          <AlertTriangle size={18} />
           <span>
             <b>{num(data.negative_count)}</b> stock balance{data.negative_count === 1 ? ' is' : 's are'} below zero. Check the stores.
           </span>
@@ -190,7 +201,7 @@ function Kpi({ icon: Icon, label, value, foot }) {
       <div className="kpi-top">
         <span className="kpi-label">{label}</span>
         <span className="kpi-icon">
-          <Icon size={17} strokeWidth={1.9} />
+          <Icon size={18} strokeWidth={1.9} />
         </span>
       </div>
       <div className="kpi-value">{value}</div>
@@ -244,7 +255,7 @@ function SalesChart({ months }) {
               <CartesianGrid vertical={false} stroke="var(--grid)" />
               <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: 'var(--border)' }} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
               <YAxis tickFormatter={compactMoney} tickLine={false} axisLine={false} width={64} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(184, 134, 11, 0.08)' }} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(33, 58, 115, 0.06)' }} />
               <Bar dataKey="total" fill={SERIES} radius={[4, 4, 0, 0]} maxBarSize={24} />
             </BarChart>
           </ResponsiveContainer>
@@ -320,7 +331,7 @@ function RecentInvoices({ rows, showBy, title = 'Recent invoices', subtitle = 'L
           <h3>{title}</h3>
           <p className="text-secondary">{subtitle}</p>
         </div>
-        <Link to="/invoices" className="btn btn-ghost btn-sm">
+        <Link to="/app/invoices" className="btn btn-ghost btn-sm">
           View all
         </Link>
       </div>
@@ -330,8 +341,8 @@ function RecentInvoices({ rows, showBy, title = 'Recent invoices', subtitle = 'L
           title="No invoices yet"
           text="Your latest invoices will appear here."
           action={
-            <Link to="/invoices/new" className="btn btn-primary btn-sm">
-              <Plus size={15} /> New sale
+            <Link to="/app/invoices/new" className="btn btn-primary btn-sm">
+              <Plus size={16} /> New sale
             </Link>
           }
         />
@@ -349,7 +360,7 @@ function RecentInvoices({ rows, showBy, title = 'Recent invoices', subtitle = 'L
           </thead>
           <tbody>
             {rows.map((inv) => (
-              <tr key={inv.id} className="row-link" onClick={() => navigate(`/invoices/${inv.id}`)}>
+              <tr key={inv.id} className="row-link" onClick={() => navigate(`/app/invoices/${inv.id}`)}>
                 <td className="strong">{inv.invoice_no}</td>
                 <td>
                   {inv.customer_name}
@@ -381,7 +392,7 @@ function LowStock({ rows, count }) {
           <p className="text-secondary">At or below reorder level · most short first</p>
         </div>
         {count > rows.length && (
-          <Link to="/stock?show=low" className="btn btn-ghost btn-sm">
+          <Link to="/app/stock?show=low" className="btn btn-ghost btn-sm">
             All {num(count)}
           </Link>
         )}
@@ -399,7 +410,7 @@ function LowStock({ rows, count }) {
           </thead>
           <tbody>
             {rows.map((p) => (
-              <tr key={p.id} className="row-link" onClick={() => navigate(`/products/${p.id}/ledger`)}>
+              <tr key={p.id} className="row-link" onClick={() => navigate(`/app/products/${p.id}/ledger`)}>
                 <td>
                   <div className="cell-stack">
                     <span className="strong">{p.name}</span>
@@ -425,14 +436,14 @@ function StoreSummary({ rows }) {
           <h3>Stores</h3>
           <p className="text-secondary">Products in stock at each location</p>
         </div>
-        <Link to="/stock" className="btn btn-ghost btn-sm">
+        <Link to="/app/stock" className="btn btn-ghost btn-sm">
           Open stock
         </Link>
       </div>
       <ul className="store-list">
         {rows.map((l) => (
           <li key={l.id}>
-            <Link to={`/stock?location=${l.id}`}>
+            <Link to={`/app/stock?location=${l.id}`}>
               <span className="strong">{l.name}</span>
               <span className="store-meta">
                 <span>{num(l.items)} items</span>
@@ -488,9 +499,9 @@ function CashierDashboard() {
                 </div>
               </div>
               <div className="quick-actions">
-                <QuickAction to="/invoices/new" icon={ReceiptText} title="New sale" text="Bill a customer" />
-                <QuickAction to="/receipts?new=1" icon={HandCoins} title="Receive payment" text="Cash, bank or cheque" />
-                <QuickAction to="/stock" icon={Boxes} title="Check stock" text="See stock in every store" />
+                <QuickAction to="/app/invoices/new" icon={ReceiptText} title="New sale" text="Bill a customer" />
+                <QuickAction to="/app/receipts?new=1" icon={HandCoins} title="Receive payment" text="Cash, bank or cheque" />
+                <QuickAction to="/app/stock" icon={Boxes} title="Check stock" text="See stock in every store" />
               </div>
             </div>
           </div>
@@ -512,7 +523,7 @@ function StoreDashboard() {
         title={`${greeting()}, ${firstName(user)}`}
         subtitle="Stock across your stores."
         actions={
-          <Link to="/stock/new?kind=in" className="btn btn-primary">
+          <Link to="/app/stock/new?kind=in" className="btn btn-primary">
             <PackagePlus size={16} /> Stock in
           </Link>
         }
@@ -553,9 +564,9 @@ function StoreDashboard() {
                   </div>
                 </div>
                 <div className="quick-actions">
-                  <QuickAction to="/stock/new?kind=in" icon={PackagePlus} title="Stock in" text="Goods received into a store" />
-                  <QuickAction to="/stock/new?kind=out" icon={PackageMinus} title="Stock out" text="Goods taken out of a store" />
-                  <QuickAction to="/stock/new?kind=transfer" icon={ArrowLeftRight} title="Transfer" text="Move goods between stores" />
+                  <QuickAction to="/app/stock/new?kind=in" icon={PackagePlus} title="Stock in" text="Goods received into a store" />
+                  <QuickAction to="/app/stock/new?kind=out" icon={PackageMinus} title="Stock out" text="Goods taken out of a store" />
+                  <QuickAction to="/app/stock/new?kind=transfer" icon={ArrowLeftRight} title="Transfer" text="Move goods between stores" />
                 </div>
               </div>
               <StoreSummary rows={data.locations} />
@@ -571,7 +582,7 @@ function QuickAction({ to, icon: Icon, title, text }) {
   return (
     <Link to={to} className="quick-action">
       <span className="kpi-icon">
-        <Icon size={17} strokeWidth={1.9} />
+        <Icon size={18} strokeWidth={1.9} />
       </span>
       <span className="cell-stack">
         <span className="strong">{title}</span>

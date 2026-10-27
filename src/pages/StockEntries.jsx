@@ -45,13 +45,13 @@ export default function StockEntries() {
         subtitle="Opening stock, stock in, stock out and transfers."
         actions={
           <>
-            <Link to="/stock/new?kind=transfer" className="btn btn-secondary">
+            <Link to="/app/stock/new?kind=transfer" className="btn btn-secondary">
               <ArrowLeftRight size={16} /> Transfer
             </Link>
-            <Link to="/stock/new?kind=out" className="btn btn-secondary">
+            <Link to="/app/stock/new?kind=out" className="btn btn-secondary">
               <PackageMinus size={16} /> Stock out
             </Link>
-            <Link to="/stock/new?kind=in" className="btn btn-primary">
+            <Link to="/app/stock/new?kind=in" className="btn btn-primary">
               <PackagePlus size={16} /> Stock in
             </Link>
           </>

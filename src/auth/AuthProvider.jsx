@@ -66,6 +66,6 @@ export function RequireAuth({ children, permission }) {
 
   if (loading) return <div className="screen-center"><div className="spinner" /></div>
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />
-  if (permission && !can(permission)) return <Navigate to="/" replace />
+  if (permission && !can(permission)) return <Navigate to="/app" replace />
   return children
 }

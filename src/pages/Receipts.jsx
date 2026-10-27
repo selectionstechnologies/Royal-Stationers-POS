@@ -106,7 +106,7 @@ export default function Receipts() {
                   <td className="strong">{r.receipt_no}</td>
                   <td className="text-secondary nowrap">{formatDate(r.receipt_date)}</td>
                   <td>
-                    <Link to={`/customers/${r.customers?.id}`} className="link">
+                    <Link to={`/app/customers/${r.customers?.id}`} className="link">
                       {customerLabel(r.customers)}
                     </Link>
                   </td>
@@ -114,7 +114,7 @@ export default function Receipts() {
                   <td className="text-secondary truncate hide-sm">
                     {[r.reference, r.note].filter(Boolean).join(' · ') || '—'}
                     {r.invoices && (
-                      <Link to={`/invoices/${r.invoice_id}`} className="link">
+                      <Link to={`/app/invoices/${r.invoice_id}`} className="link">
                         {' '}
                         (Inv #{r.invoices.invoice_no})
                       </Link>

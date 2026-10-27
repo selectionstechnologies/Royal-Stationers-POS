@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, History, Printer } from 'lucide-react'
-import { getProduct, getProductLedger, listLocations } from '../lib/api'
-import { formatDate, num, qtyText } from '../lib/format'
+import { getProduct, getProductContainers, getProductLedger, listLocations } from '../lib/api'
+import { ON_THE_WAY, formatDate, money, num, qtyText } from '../lib/format'
+import { useAuth } from '../auth/AuthProvider'
 import { EmptyState, ErrorBanner, Loading } from '../components/ui'
+import { ContainerStatus } from './Containers'
+import DateInput from '../components/DateInput'
 
 const KIND_LABELS = {
   opening: 'Opening stock',
@@ -13,13 +16,17 @@ const KIND_LABELS = {
   transfer_out: 'Transfer out',
   sale: 'Sale',
   sale_return: 'Sale return',
+  container_in: 'Container received',
 }
 
 export default function ProductLedger() {
   const { id } = useParams()
+  const { can } = useAuth()
+  const showContainers = can('containers.view')
   const [product, setProduct] = useState(null)
   const [moves, setMoves] = useState(null)
   const [locations, setLocations] = useState([])
+  const [containers, setContainers] = useState([])
   const [error, setError] = useState('')
   const [locationId, setLocationId] = useState('')
   const [from, setFrom] = useState('')
@@ -29,14 +36,15 @@ export default function ProductLedger() {
   useEffect(() => {
     setProduct(null)
     setMoves(null)
-    Promise.all([getProduct(id), getProductLedger(id), listLocations()])
-      .then(([p, m, l]) => {
+    Promise.all([getProduct(id), getProductLedger(id), listLocations(), showContainers ? getProductContainers(id) : []])
+      .then(([p, m, l, c]) => {
         setProduct(p)
         setMoves(m)
         setLocations(l)
+        setContainers(c)
       })
       .catch((e) => setError(e.message))
-  }, [id])
+  }, [id, showContainers])
 
   const locName = useMemo(() => Object.fromEntries(locations.map((l) => [l.id, l.name])), [locations])
 
@@ -73,15 +81,23 @@ export default function ProductLedger() {
 
   const show = (qty) => (cartons ? qtyText(qty, product.unit, product.carton_qty) : `${num(qty)}`)
   const total = Object.values(stockByLocation).reduce((s, q) => s + q, 0)
+  const onWay = containers.filter((c) => ON_THE_WAY.includes(c.containers.status)).reduce((s, c) => s + Number(c.qty), 0)
 
   function describe(m) {
     const entry = m.stock_entries
+    if (m.containers) {
+      return (
+        <Link to={`/app/containers/${m.containers.id}`} className="link">
+          Received from container {m.containers.container_no}
+        </Link>
+      )
+    }
     if (!m.invoices && !entry) return KIND_LABELS[m.kind]
     if (m.invoices) {
       const c = m.invoices.customers
       return (
         <>
-          <Link to={`/invoices/${m.invoices.id}`} className="link">
+          <Link to={`/app/invoices/${m.invoices.id}`} className="link">
             {m.kind === 'sale' ? 'Sale invoice' : 'Return'} #{m.invoices.invoice_no}
           </Link>
           <span className="text-secondary"> · {c?.name}{c?.city ? ` (${c.city})` : ''}</span>
@@ -103,8 +119,8 @@ export default function ProductLedger() {
     <>
       <div className="page-header no-print">
         <div>
-          <Link to="/products" className="back-link">
-            <ArrowLeft size={15} /> Products
+          <Link to="/app/products" className="back-link">
+            <ArrowLeft size={16} /> Products
           </Link>
           <h1>Stock ledger</h1>
         </div>
@@ -125,11 +141,13 @@ export default function ProductLedger() {
             Unit {product.unit} · Carton qty {product.carton_qty}
             {product.inner_qty > 0 && ` · Inner qty ${product.inner_qty}`}
             {product.company && ` · ${product.company}`}
+            {product.cost_price != null && ` · Cost ${money(product.cost_price)}`}
           </div>
         </div>
         <div className="ledger-total">
           <div className="meta-label">Current stock</div>
           <div className={`ledger-total-value ${total < 0 ? 'text-critical' : ''}`}>{qtyText(total, product.unit, product.carton_qty)}</div>
+          {onWay > 0 && <div className="text-info">+ {qtyText(onWay, product.unit, product.carton_qty)} on the way</div>}
         </div>
         <div className="chips">
           {locations
@@ -146,6 +164,45 @@ export default function ProductLedger() {
         </div>
       </div>
 
+      {containers.length > 0 && (
+        <div className="card card-flush no-print">
+          <div className="card-head card-head-tight">
+            <div>
+              <h3>Containers</h3>
+              <p className="text-secondary">Imports that carried this product</p>
+            </div>
+          </div>
+          <table className="table table-compact">
+            <thead>
+              <tr>
+                <th>Container</th>
+                <th>Status</th>
+                <th className="hide-sm">Date</th>
+                <th className="num">Quantity</th>
+              </tr>
+            </thead>
+            <tbody>
+              {containers.map(({ containers: c, qty, received_qty }) => (
+                <tr key={c.id}>
+                  <td>
+                    <Link to={`/app/containers/${c.id}`} className="link mono">
+                      {c.container_no}
+                    </Link>
+                  </td>
+                  <td>
+                    <ContainerStatus status={c.status} />
+                  </td>
+                  <td className="text-secondary hide-sm">
+                    {c.status === 'received' ? formatDate(c.received_date) : c.eta ? `ETA ${formatDate(c.eta)}` : formatDate(c.order_date)}
+                  </td>
+                  <td className="num strong">{qtyText(received_qty ?? qty, product.unit, product.carton_qty)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="card card-flush">
         <div className="toolbar no-print">
           <select className="input toolbar-select" value={locationId} onChange={(e) => setLocationId(e.target.value)} aria-label="Store">
@@ -157,9 +214,9 @@ export default function ProductLedger() {
             ))}
           </select>
           <div className="date-range">
-            <input type="date" className="input" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label="From date" />
+            <DateInput value={from} max={to || undefined} onChange={setFrom} aria-label="From date" />
             <span className="text-muted">to</span>
-            <input type="date" className="input" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
+            <DateInput value={to} min={from || undefined} onChange={setTo} aria-label="To date" />
           </div>
           <label className="toggle">
             <input type="checkbox" checked={cartons} onChange={(e) => setCartons(e.target.checked)} />

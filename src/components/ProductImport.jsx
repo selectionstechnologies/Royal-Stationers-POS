@@ -72,13 +72,13 @@ export default function ProductImport({ existing, locations, onClose, onImported
       footer={
         <>
           <button type="button" className="btn btn-ghost mr-auto" onClick={downloadTemplate}>
-            <Download size={15} /> Download template
+            <Download size={16} /> Download template
           </button>
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
           <button className="btn btn-primary" onClick={handleImport} disabled={busy || valid.length === 0}>
-            <Upload size={15} />
+            <Upload size={16} />
             {busy ? `Importing… ${num(progress)} / ${num(valid.length)}` : `Import ${valid.length ? num(valid.length) : ''} product${valid.length === 1 ? '' : 's'}`}
           </button>
         </>
@@ -111,7 +111,7 @@ export default function ProductImport({ existing, locations, onClose, onImported
           }}
         />
         <div className="empty-icon">
-          <FileUp size={22} strokeWidth={1.8} />
+          <FileUp size={20} strokeWidth={1.8} />
         </div>
         <div className="strong">{fileName || 'Drop a CSV file here, or click to choose'}</div>
         <div className="text-muted">

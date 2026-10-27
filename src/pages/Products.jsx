@@ -112,10 +112,10 @@ export default function Products() {
               canManage && (
                 <div className="empty-actions">
                   <button className="btn btn-secondary btn-sm" onClick={() => setImporting(true)}>
-                    <Upload size={15} /> Import CSV
+                    <Upload size={16} /> Import CSV
                   </button>
                   <button className="btn btn-primary btn-sm" onClick={() => setEditing({})}>
-                    <Plus size={15} /> Add product
+                    <Plus size={16} /> Add product
                   </button>
                 </div>
               )
@@ -145,7 +145,7 @@ export default function Products() {
                   <tr
                     key={p.id}
                     className="row-link"
-                    onClick={() => (canManage ? setEditing(p) : navigate(`/products/${p.id}/ledger`))}
+                    onClick={() => (canManage ? setEditing(p) : navigate(`/app/products/${p.id}/ledger`))}
                   >
                     <td className="mono text-secondary hide-sm">{p.code}</td>
                     <td>
@@ -175,7 +175,7 @@ export default function Products() {
                       </div>
                     </td>
                     <td className="row-actions" onClick={(e) => e.stopPropagation()}>
-                      <button className="icon-btn" title="Stock ledger" aria-label="Stock ledger" onClick={() => navigate(`/products/${p.id}/ledger`)}>
+                      <button className="icon-btn" title="Stock ledger" aria-label="Stock ledger" onClick={() => navigate(`/app/products/${p.id}/ledger`)}>
                         <History size={16} />
                       </button>
                     </td>
