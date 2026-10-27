@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { UserRound, X } from 'lucide-react'
 import { createReceipt } from '../lib/api'
-import { METHOD_LABELS, money, today } from '../lib/format'
+import { MAX_AMOUNT, METHOD_LABELS, cleanAmount, money, today } from '../lib/format'
 import { customerLabel } from '../lib/customerFields'
 import { ErrorBanner, Field, Modal } from './ui'
 import { CustomerSearch } from './Pickers'
@@ -18,8 +18,9 @@ export default function ReceiptModal({ customer: fixed, customers = [], balances
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const value = Number(String(amount).replace(/,/g, ''))
-  const valid = customer && Number.isFinite(value) && value > 0 && date
+  const value = Number(amount)
+  const tooBig = value > MAX_AMOUNT
+  const valid = customer && Number.isFinite(value) && value > 0 && !tooBig && date
 
   async function handleSave(e) {
     e.preventDefault()
@@ -71,8 +72,16 @@ export default function ReceiptModal({ customer: fixed, customers = [], balances
             )}
           </Field>
         </div>
-        <Field label="Amount (Rs)">
-          <input className="input input-num" inputMode="decimal" autoFocus={Boolean(fixed)} value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <Field label="Amount (Rs)" hint={tooBig ? `Cannot be more than ${money(MAX_AMOUNT)}` : null}>
+          <input
+            className={`input input-num ${tooBig ? 'invalid' : ''}`}
+            inputMode="decimal"
+            placeholder="0.00"
+            maxLength={13}
+            autoFocus={Boolean(fixed)}
+            value={amount}
+            onChange={(e) => setAmount(cleanAmount(e.target.value))}
+          />
         </Field>
         <Field label="Date">
           <DateInput value={date} onChange={setDate} />

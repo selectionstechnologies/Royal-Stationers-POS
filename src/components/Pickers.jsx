@@ -8,8 +8,8 @@ import DateInput from './DateInput'
 const MAX_RESULTS = 40
 
 // Type-to-search list with keyboard support (↑ ↓ Enter Esc). `render(item)` draws one row.
-// `browse`: also works as a dropdown — click or ↓ with nothing typed lists every item.
-const SearchBox = forwardRef(function SearchBox({ items, filter, render, onPick, placeholder, autoFocus, emptyText, browse }, ref) {
+// `browse`: also works as a dropdown — click or ↓ with nothing typed lists every item (up to `browseLimit`).
+const SearchBox = forwardRef(function SearchBox({ items, filter, render, onPick, placeholder, autoFocus, emptyText, browse, browseLimit = Infinity }, ref) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -18,16 +18,21 @@ const SearchBox = forwardRef(function SearchBox({ items, filter, render, onPick,
 
   useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }))
 
-  const results = useMemo(() => {
-    if (!q.trim() && !browse) return []
-    const limit = q.trim() ? MAX_RESULTS : Infinity
+  // `total` counts every match while browsing, so the list can say how many more there are
+  const { results, total } = useMemo(() => {
+    if (!q.trim() && !browse) return { results: [], total: 0 }
+    const browsing = !q.trim()
+    const limit = browsing ? browseLimit : MAX_RESULTS
     const out = []
+    let count = 0
     for (const it of items) {
-      if (filter(it, q)) out.push(it)
-      if (out.length >= limit) break
+      if (!filter(it, q)) continue
+      count++
+      if (out.length < limit) out.push(it)
+      else if (!browsing) break
     }
-    return out
-  }, [items, filter, q, browse])
+    return { results: out, total: count }
+  }, [items, filter, q, browse, browseLimit])
 
   useEffect(() => setActive(0), [q])
   useEffect(() => {
@@ -114,6 +119,11 @@ const SearchBox = forwardRef(function SearchBox({ items, filter, render, onPick,
             </li>
           ))}
           {results.length === 0 && <li className="searchbox-empty">{emptyText}</li>}
+          {!q.trim() && total > results.length && (
+            <li className="searchbox-empty">
+              Showing {results.length} of {total}. Type to narrow down.
+            </li>
+          )}
         </ul>
       )}
     </div>
@@ -131,7 +141,9 @@ export const ProductSearch = forwardRef(function ProductSearch({ products, stock
       filter={productFilter}
       onPick={onPick}
       autoFocus={autoFocus}
-      placeholder={placeholder ?? 'Search product by name or code'}
+      browse
+      browseLimit={200}
+      placeholder={placeholder ?? 'Search by name or code, or pick from the list'}
       emptyText="No product matches"
       render={(p) => {
         const total = stock?.[p.id]?.total ?? 0

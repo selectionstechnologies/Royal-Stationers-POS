@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Camera, History, Plus, Trash2, UserRound, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Boxes, Camera, History, Plus, Trash2, UserRound, X } from 'lucide-react'
 import {
   createInvoice,
   getDefaultCompany,
@@ -13,10 +13,10 @@ import {
   listProducts,
   listStockLevels,
 } from '../lib/api'
-import { DELIVERY_LABELS, PAYMENT_LABELS, TXN_LABELS, computeInvoice, formatDate, money, num, qtyText, toQty, today } from '../lib/format'
+import { DELIVERY_LABELS, PAYMENT_LABELS, TXN_LABELS, computeInvoice, formatDate, money, num, qtyText, splitQty, toQty, today } from '../lib/format'
 import { bestLocation, stockIndex } from '../lib/stock'
 import { customerLabel } from '../lib/customerFields'
-import { ErrorBanner, Field, Loading } from '../components/ui'
+import { EmptyState, ErrorBanner, Field, Loading } from '../components/ui'
 import { CustomerSearch, ProductSearch } from '../components/Pickers'
 import { CustomerModal } from '../components/RecordModals'
 import ChequeModal from '../components/ChequeModal'
@@ -287,6 +287,8 @@ export default function InvoiceForm() {
     }
   }
 
+  // Returns against an invoice have no product picking, so no stock panel
+  const showStockPanel = !againstInvoice && !needsInvoice
   const entryAvail = entry ? available(entry.product.id, entry.location_id) - usedOnBill(entry.product.id, entry.location_id) : 0
   const entryShort = entry && isSale && !company.allow_negative_stock && entryQty > entryAvail
   const entryBelowMin = entry && isSale && Number(entry.product.min_price) > 0 && n(entry.unit_price) < Number(entry.product.min_price)
@@ -404,7 +406,7 @@ export default function InvoiceForm() {
         )}
       </div>
 
-      <div className="builder">
+      <div className={`builder ${showStockPanel ? '' : 'builder-solo'}`}>
         <div className="builder-main">
           {againstInvoice ? (
             <ReturnLines lines={lines} locations={locations} invoiceNo={customerSales?.find((x) => x.id === returnOf)?.invoice_no} onChange={updateItem} />
@@ -445,48 +447,17 @@ export default function InvoiceForm() {
                   </button>
                 </div>
 
-                <div className="chips">
-                  {locations.map((l) => {
-                    const q = available(entry.product.id, l.id)
-                    return (
-                      <button
-                        type="button"
-                        key={l.id}
-                        className={`chip ${entry.location_id === l.id ? 'active' : ''} ${q < 0 ? 'chip-critical' : q === 0 ? 'chip-empty' : ''}`}
-                        onClick={() => setEntry((e) => ({ ...e, location_id: l.id }))}
-                      >
-                        {l.name}: <b>{qtyText(q, entry.product.unit, entry.product.carton_qty)}</b>
-                      </button>
-                    )
-                  })}
+                <div className="stock-inline">
+                  <EntryStock
+                    name="sell-from-inline"
+                    entry={entry}
+                    locations={locations}
+                    available={available}
+                    customer={customer}
+                    history={history}
+                    setEntry={setEntry}
+                  />
                 </div>
-
-                {customer && history.length > 0 && (
-                  <div className="history">
-                    <div className="history-title">
-                      <History size={14} /> Last sales to {customer.name}
-                    </div>
-                    <table className="table table-compact">
-                      <tbody>
-                        {history.map((h) => (
-                          <tr key={`${h.invoice_id}-${h.unit_price}-${h.qty}`}>
-                            <td>{formatDate(h.invoice_date)}</td>
-                            <td>
-                              Inv #{h.invoice_no}
-                              {h.txn_type === 'return' && <span className="text-muted"> (return)</span>}
-                            </td>
-                            <td className="num">{qtyText(h.qty, entry.product.unit, entry.product.carton_qty)}</td>
-                            <td className="num">
-                              <button type="button" className="link-btn" onClick={() => setEntry((e) => ({ ...e, unit_price: String(h.unit_price) }))} title="Use this rate">
-                                {money(h.unit_price)}
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
 
                 <div className="entry-inputs">
                   <Field label="Cartons">
@@ -615,77 +586,104 @@ export default function InvoiceForm() {
           )}
         </div>
 
-        <aside className="builder-aside">
-          <div className="card summary">
-            <div className="summary-block">
-              <div className="summary-label">Customer</div>
-              {customer ? (
+        {showStockPanel && (
+          <aside className="builder-aside">
+            <div className="card stock-panel">
+              {entry ? (
                 <>
-                  <div className="strong">{customerLabel(customer)}</div>
-                  <div className="sum-row">
-                    <span>Previous balance</span>
-                    <span>{money(prevBalance)}</span>
+                  <div className="stock-panel-head">
+                    <div className="summary-label">Stock by store</div>
+                    <div className="strong">{entry.product.name}</div>
+                    <div className="text-muted">
+                      {entry.product.carton_qty > 1 ? `${entry.product.carton_qty} ${entry.product.unit} per carton` : entry.product.unit}
+                    </div>
                   </div>
+                  <EntryStock
+                    name="sell-from-aside"
+                    entry={entry}
+                    locations={locations}
+                    available={available}
+                    customer={customer}
+                    history={history}
+                    setEntry={setEntry}
+                  />
                 </>
               ) : (
-                <div className="text-muted">No customer selected</div>
+                <EmptyState icon={Boxes} title="Stock by store" text="Pick a product to see how much is on every floor, and choose the store to sell from." />
               )}
             </div>
+          </aside>
+        )}
+      </div>
 
-            <div className="summary-block">
-              <div className="summary-label">
-                {isSale ? 'Bill' : 'Return'} · {billLines.length} item{billLines.length === 1 ? '' : 's'}
-              </div>
+      <div className="card summary summary-bar">
+        <div className="summary-block">
+          <div className="summary-label">Customer</div>
+          {customer ? (
+            <>
+              <div className="strong">{customerLabel(customer)}</div>
               <div className="sum-row">
-                <span>Subtotal</span>
-                <span>{money(totals.subtotal)}</span>
+                <span>Previous balance</span>
+                <span>{money(prevBalance)}</span>
               </div>
-              <div className="sum-row sum-input">
-                <span>Discount</span>
-                <input className={`input input-num input-sm ${discountValid ? '' : 'invalid'}`} inputMode="decimal" placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
-              </div>
-              <div className="sum-row sum-input">
-                <span>Freight</span>
-                <input className="input input-num input-sm" inputMode="decimal" placeholder="0" value={freight} onChange={(e) => setFreight(e.target.value)} />
-              </div>
-              <div className="sum-row sum-total">
-                <span>Net total</span>
-                <span>{money(totals.total)}</span>
-              </div>
-              <div className="sum-row sum-input">
-                <span>{isSale ? 'Received now' : 'Refunded now'}</span>
-                <input
-                  className="input input-num input-sm"
-                  inputMode="decimal"
-                  placeholder="0"
-                  value={received}
-                  onChange={(e) => {
-                    setReceivedTouched(true)
-                    setReceived(e.target.value)
-                  }}
-                />
-              </div>
-              {customer && (
-                <div className={`sum-row sum-after ${overLimit ? 'text-critical' : ''}`}>
-                  <span>Balance with this bill</span>
-                  <span>{money(afterBill)}</span>
-                </div>
-              )}
-              {overLimit && <p className="entry-warn critical">Over credit limit of {money(customer.credit_limit)}.</p>}
-            </div>
+            </>
+          ) : (
+            <div className="text-muted">No customer selected</div>
+          )}
+        </div>
 
-            <div className="summary-block">
-              <Field label="Remarks">
-                <textarea className="input" rows={2} placeholder="Optional" value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </Field>
-              <button className="btn btn-primary btn-block btn-lg summary-save" disabled={!canSave || saving} onClick={handleSave}>
-                {saving ? 'Saving…' : isSale ? 'Save invoice' : 'Save return'}
-              </button>
-              {!customer && <p className="text-muted summary-hint">Choose a customer to save.</p>}
-              {customer && needsInvoice && <p className="text-muted summary-hint">Choose the invoice this return is for.</p>}
-            </div>
+        <div className="summary-block">
+          <div className="summary-label">
+            {isSale ? 'Bill' : 'Return'} · {billLines.length} item{billLines.length === 1 ? '' : 's'}
           </div>
-        </aside>
+          <div className="sum-row">
+            <span>Subtotal</span>
+            <span>{money(totals.subtotal)}</span>
+          </div>
+          <div className="sum-row sum-input">
+            <span>Discount</span>
+            <input className={`input input-num input-sm ${discountValid ? '' : 'invalid'}`} inputMode="decimal" placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+          </div>
+          <div className="sum-row sum-input">
+            <span>Freight</span>
+            <input className="input input-num input-sm" inputMode="decimal" placeholder="0" value={freight} onChange={(e) => setFreight(e.target.value)} />
+          </div>
+          <div className="sum-row sum-total">
+            <span>Net total</span>
+            <span>{money(totals.total)}</span>
+          </div>
+          <div className="sum-row sum-input">
+            <span>{isSale ? 'Received now' : 'Refunded now'}</span>
+            <input
+              className="input input-num input-sm"
+              inputMode="decimal"
+              placeholder="0"
+              value={received}
+              onChange={(e) => {
+                setReceivedTouched(true)
+                setReceived(e.target.value)
+              }}
+            />
+          </div>
+          {customer && (
+            <div className={`sum-row sum-after ${overLimit ? 'text-critical' : ''}`}>
+              <span>Balance with this bill</span>
+              <span>{money(afterBill)}</span>
+            </div>
+          )}
+          {overLimit && <p className="entry-warn critical">Over credit limit of {money(customer.credit_limit)}.</p>}
+        </div>
+
+        <div className="summary-block">
+          <Field label="Remarks">
+            <textarea className="input" rows={2} placeholder="Optional" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </Field>
+          <button className="btn btn-primary btn-block btn-lg summary-save" disabled={!canSave || saving} onClick={handleSave}>
+            {saving ? 'Saving…' : isSale ? 'Save invoice' : 'Save return'}
+          </button>
+          {!customer && <p className="text-muted summary-hint">Choose a customer to save.</p>}
+          {customer && needsInvoice && <p className="text-muted summary-hint">Choose the invoice this return is for.</p>}
+        </div>
       </div>
 
       {chequeOpen && (
@@ -794,6 +792,105 @@ function ReturnLines({ lines, locations, invoiceNo, onChange }) {
                   </tr>
                 )
               })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Stock of the picked product in every store, as a table. Clicking a row (or its radio) picks the store to sell from.
+function StoreStock({ name, locations, product, qtyAt, selected, onSelect }) {
+  const hasCartons = Number(product.carton_qty) > 1
+  const rows = locations.map((l) => ({ ...l, qty: qtyAt(l.id) }))
+  const total = rows.reduce((sum, r) => sum + r.qty, 0)
+  const cell = (qty) => {
+    const { cartons, loose } = splitQty(qty, product.carton_qty)
+    return (
+      <>
+        {hasCartons && <td className="num">{cartons ? num(cartons) : '—'}</td>}
+        {hasCartons && <td className="num">{loose ? num(loose) : '—'}</td>}
+        <td className="num strong">
+          {num(qty)} <span className="stock-unit">{product.unit}</span>
+        </td>
+      </>
+    )
+  }
+
+  return (
+    <div className="store-stock">
+      <table className="table table-compact">
+        <thead>
+          <tr>
+            <th>Store</th>
+            {hasCartons && <th className="num">Cartons</th>}
+            {hasCartons && <th className="num">Loose</th>}
+            <th className="num">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr
+              key={r.id}
+              onClick={() => onSelect(r.id)}
+              className={`${r.id === selected ? 'is-selected' : ''} ${r.qty < 0 ? 'is-negative' : r.qty === 0 ? 'is-empty' : ''}`}
+            >
+              <td>
+                <label className="store-pick">
+                  <input type="radio" name={name} checked={r.id === selected} onChange={() => onSelect(r.id)} />
+                  {r.name}
+                </label>
+              </td>
+              {cell(r.qty)}
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td>All stores</td>
+            {cell(total)}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  )
+}
+
+// What the cashier needs while entering an item: stock per store, and this customer's last prices for it
+function EntryStock({ name, entry, locations, available, customer, history, setEntry }) {
+  return (
+    <div className="entry-stock">
+      <StoreStock
+        name={name}
+        locations={locations}
+        product={entry.product}
+        qtyAt={(locationId) => available(entry.product.id, locationId)}
+        selected={entry.location_id}
+        onSelect={(id) => setEntry((e) => ({ ...e, location_id: id }))}
+      />
+      {customer && history.length > 0 && (
+        <div className="history">
+          <div className="history-title">
+            <History size={14} /> Last sales to {customer.name}
+          </div>
+          <table className="table table-compact">
+            <tbody>
+              {history.map((h) => (
+                <tr key={`${h.invoice_id}-${h.unit_price}-${h.qty}`}>
+                  <td>{formatDate(h.invoice_date)}</td>
+                  <td>
+                    Inv #{h.invoice_no}
+                    {h.txn_type === 'return' && <span className="text-muted"> (return)</span>}
+                  </td>
+                  <td className="num">{qtyText(h.qty, entry.product.unit, entry.product.carton_qty)}</td>
+                  <td className="num">
+                    <button type="button" className="link-btn" onClick={() => setEntry((e) => ({ ...e, unit_price: String(h.unit_price) }))} title="Use this rate">
+                      {money(h.unit_price)}
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

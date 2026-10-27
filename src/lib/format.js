@@ -8,6 +8,17 @@ const compactFmt = new Intl.NumberFormat('en-PK', { notation: 'compact', maximum
 const numFmt = new Intl.NumberFormat('en-PK', { maximumFractionDigits: 2 })
 
 export const money = (n) => moneyFmt.format(Number(n) || 0)
+
+// Largest amount accepted in one entry (Rs 10 crore)
+export const MAX_AMOUNT = 100000000
+
+// Money as the user types it: digits and one decimal point, at most 2 decimals.
+// Letters, commas and spaces are dropped: "12,500.505" -> "12500.50", "abc" -> ""
+export function cleanAmount(text) {
+  const [whole, ...rest] = String(text ?? '').replace(/[^\d.]/g, '').split('.')
+  return rest.length ? `${whole}.${rest.join('').slice(0, 2)}` : whole
+}
+
 export const compactMoney = (n) => `Rs ${compactFmt.format(Number(n) || 0)}`
 export const num = (n) => numFmt.format(Number(n) || 0)
 
