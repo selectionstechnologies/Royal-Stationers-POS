@@ -131,6 +131,8 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; }
 }
 .role-pill.role-admin { background: var(--primary-soft); color: var(--primary); }
 .role-pill.role-cashier { background: var(--info-bg); color: var(--info); }
+.role-pill.role-manager { background: var(--good-bg); color: var(--good); }
+.role-pill.role-storekeeper { background: var(--warning-bg); color: var(--warning); }
 .row-dim td { opacity: 0.6; }
 .row-dim td:last-child { opacity: 1; }
 .you { margin-left: 6px; padding: 1px 6px; border-radius: 5px; background: #eef0f3; color: var(--text-secondary); font-size: 11px; font-weight: 600; }
@@ -549,6 +551,7 @@ select.input-sm { padding-right: 30px; background-position: right 8px center; }
 
 /* Search box (products / customers) */
 .searchbox { position: relative; }
+.searchbox .input-icon > .input { padding-right: 38px; text-overflow: ellipsis; }
 .searchbox-list {
   position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: 0; max-height: 340px; overflow-y: auto;
   margin: 0; padding: 4px; list-style: none; background: var(--surface);
@@ -611,6 +614,19 @@ select.input-sm { padding-right: 30px; background-position: right 8px center; }
 .print-only { display: none; }
 .stock-table th { white-space: nowrap; }
 .stock-table td.num { white-space: nowrap; }
+/* Scrolls inside the page, so the sideways scrollbar is always on screen */
+.stock-scroll { overflow: auto; max-height: calc(100vh - 230px); border-top: 1px solid var(--border); }
+.stock-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.stock-scroll::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; border: 2px solid var(--surface); }
+.stock-scroll::-webkit-scrollbar-track { background: var(--surface-2); }
+.stock-table thead th { position: sticky; top: 0; z-index: 2; }
+.stock-name { font-size: 13px; line-height: 1.35; text-align: left; }
+.store-table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.store-table th, .store-table td { padding-left: 14px; padding-right: 14px; }
+.store-table tbody tr:last-child td { border-bottom: 0; }
+.table.store-table tfoot tr { display: table-row; }
+.store-table tfoot td { background: var(--hover-bg); border-top: 1px solid var(--border); border-bottom: 0; font-weight: 650; }
+.stock-pcs { font-size: 12px; color: var(--text-muted); }
 
 /* Stock entry + invoice lines */
 .entry-lines { margin-top: 20px; }
@@ -622,9 +638,15 @@ select.input-sm { padding-right: 30px; background-position: right 8px center; }
 .lines-wrap { overflow-x: auto; }
 
 /* Invoice form */
-.invoice-head {
-  display: grid; grid-template-columns: minmax(260px, 2fr) repeat(5, minmax(120px, 1fr)); gap: 14px; align-items: end; margin-bottom: 20px;
-}
+.invoice-head { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 20px; }
+.invoice-head > * { flex: 1 1 130px; min-width: 0; }
+.invoice-head > .invoice-head-customer { flex: 3 1 340px; }
+.invoice-head > .invoice-head-date { flex: 1 1 165px; }
+.cheque-btn { width: 100%; justify-content: flex-start; }
+.cheque-btn span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dropzone-preview { padding: 14px; }
+.cheque-preview { display: block; max-width: 100%; max-height: 300px; object-fit: contain; border-radius: 8px; }
+.cheque-thumb { display: block; max-width: 220px; max-height: 120px; object-fit: contain; border: 1px solid var(--border); border-radius: 6px; }
 .entry-panel {
   margin-top: 14px; padding: 16px; display: flex; flex-direction: column; gap: 14px;
   border: 1px solid #f1dfaa; border-radius: 12px; background: var(--hover-bg);
@@ -669,12 +691,12 @@ select.input-sm { padding-right: 30px; background-position: right 8px center; }
 .import-more { margin-top: 8px; font-size: 12px; }
 
 @media (max-width: 1100px) {
-  .invoice-head { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .invoice-head-customer { grid-column: 1 / -1; }
+  .invoice-head > .invoice-head-customer { flex-basis: 100%; }
   .form-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
-  .form-grid-3, .form-grid-4, .invoice-head { grid-template-columns: minmax(0, 1fr); }
+  .form-grid-3, .form-grid-4 { grid-template-columns: minmax(0, 1fr); }
+  .invoice-head > * { flex-basis: 100%; }
   .entry-inputs > .field:nth-child(4), .entry-add { flex-basis: 100%; }
   .ledger-head { grid-template-columns: minmax(0, 1fr); }
   .ledger-total { text-align: left; }
@@ -688,6 +710,7 @@ select.input-sm { padding-right: 30px; background-position: right 8px center; }
   .print-title { padding: 0 0 10px; font-weight: 650; font-size: 15px; }
   .card { box-shadow: none; border: 0; padding: 0; }
   .card-flush { overflow: visible; }
+  .stock-scroll { overflow: visible; max-height: none; }
   .ledger-head { margin-bottom: 12px; }
   .ledger-head .chips { display: none; }
   .table td, .table th { padding-top: 5px; padding-bottom: 5px; }

@@ -5,6 +5,7 @@ import { deleteStockEntry, listStockEntries } from '../lib/api'
 import { ENTRY_LABELS, formatDate, monthStart, qtyText, today } from '../lib/format'
 import { EmptyState, ErrorBanner, Loading, PageHeader } from '../components/ui'
 import { DateRange } from '../components/Pickers'
+import { useAuth } from '../auth/AuthProvider'
 
 const KIND_CLS = { opening: 'status-neutral', in: 'status-good', out: 'status-warning', transfer: 'status-info' }
 
@@ -12,6 +13,8 @@ const KIND_CLS = { opening: 'status-neutral', in: 'status-good', out: 'status-wa
 const entryItems = (e) => e.stock_moves.filter((m) => e.kind !== 'transfer' || Number(m.qty) < 0)
 
 export default function StockEntries() {
+  const { can } = useAuth()
+  const canDelete = can('delete')
   const location = useLocation()
   const [range, setRange] = useState({ from: monthStart(), to: today() })
   const [rows, setRows] = useState(null)
@@ -103,9 +106,11 @@ export default function StockEntries() {
                       <td className="text-secondary hide-sm">{e.creator?.name ?? '—'}</td>
                       <td className="num hide-sm">{items.length}</td>
                       <td className="row-actions" onClick={(ev) => ev.stopPropagation()}>
-                        <button className="icon-btn danger" title="Delete entry" aria-label="Delete entry" onClick={() => remove(e)}>
-                          <Trash2 size={16} />
-                        </button>
+                        {canDelete && (
+                          <button className="icon-btn danger" title="Delete entry" aria-label="Delete entry" onClick={() => remove(e)}>
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                     {isOpen && (

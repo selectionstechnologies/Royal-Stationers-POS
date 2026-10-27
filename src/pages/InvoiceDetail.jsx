@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus, Printer, Trash2 } from 'lucide-react'
-import { deleteInvoice, getInvoice } from '../lib/api'
+import { deleteInvoice, getChequeImageUrl, getInvoice } from '../lib/api'
 import { DELIVERY_LABELS, PAYMENT_LABELS, formatDate, money, num, qtyText } from '../lib/format'
 import { customerLabel } from '../lib/customerFields'
 import { ErrorBanner, Loading, TxnBadge } from '../components/ui'
@@ -16,16 +16,23 @@ const LAYOUTS = [
 export default function InvoiceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { can } = useAuth()
+  const canDelete = can('delete')
   const [doc, setDoc] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [layout, setLayout] = useState('normal')
+  const [chequeUrl, setChequeUrl] = useState('')
 
   useEffect(() => {
     setDoc(null)
     getInvoice(id).then(setDoc).catch((e) => setError(e.message))
   }, [id])
+
+  useEffect(() => {
+    setChequeUrl('')
+    if (doc?.cheque_image) getChequeImageUrl(doc.cheque_image).then(setChequeUrl).catch(() => {})
+  }, [doc?.cheque_image])
 
   async function remove() {
     if (!window.confirm(`Delete invoice #${doc.invoice_no}? Stock goes back to the stores and the customer's account is reversed.`)) return
@@ -72,7 +79,7 @@ export default function InvoiceDetail() {
           {doc.created_by_name && <p className="text-secondary created-by">Created by {doc.created_by_name}</p>}
         </div>
         <div className="page-actions">
-          {isAdmin && (
+          {canDelete && (
             <button className="btn btn-danger-ghost" onClick={remove} disabled={busy}>
               <Trash2 size={16} /> Delete
             </button>
@@ -130,6 +137,16 @@ export default function InvoiceDetail() {
               <dt>Payment</dt>
               <dd>{PAYMENT_LABELS[doc.payment_mode]}</dd>
             </div>
+            {chequeUrl && (
+              <div className="no-print">
+                <dt>Cheque</dt>
+                <dd>
+                  <a href={chequeUrl} target="_blank" rel="noreferrer">
+                    <img src={chequeUrl} alt="Cheque photo" className="cheque-thumb" />
+                  </a>
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Delivery</dt>
               <dd>{DELIVERY_LABELS[doc.delivery_mode]}</dd>

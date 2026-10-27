@@ -4,10 +4,14 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import {
   AlertTriangle,
   ArrowDownRight,
+  ArrowLeftRight,
   ArrowUpRight,
   Boxes,
   CalendarDays,
   HandCoins,
+  Package,
+  PackageMinus,
+  PackagePlus,
   PackageSearch,
   Plus,
   ReceiptText,
@@ -49,9 +53,12 @@ const withLabels = (months) =>
     }
   })
 
+// Admin and manager: whole business. Cashier: own sales. Store keeper: stock only.
 export default function Dashboard() {
-  const { isAdmin } = useAuth()
-  return isAdmin ? <AdminDashboard /> : <CashierDashboard />
+  const { can } = useAuth()
+  if (can('reports')) return <AdminDashboard />
+  if (can('sales')) return <CashierDashboard />
+  return <StoreDashboard />
 }
 
 function HeaderActions() {
@@ -123,26 +130,7 @@ function AdminDashboard() {
             />
           </div>
 
-          {(data.low_stock_count > 0 || data.negative_count > 0) && (
-            <div className="alert-row">
-              {data.low_stock_count > 0 && (
-                <Link to="/stock?show=low" className="dash-alert warn">
-                  <PackageSearch size={17} />
-                  <span>
-                    <b>{num(data.low_stock_count)}</b> product{data.low_stock_count === 1 ? ' is' : 's are'} at or below reorder level
-                  </span>
-                </Link>
-              )}
-              {data.negative_count > 0 && (
-                <Link to="/stock?show=negative" className="dash-alert critical">
-                  <AlertTriangle size={17} />
-                  <span>
-                    <b>{num(data.negative_count)}</b> stock balance{data.negative_count === 1 ? ' is' : 's are'} below zero. Check the stores.
-                  </span>
-                </Link>
-              )}
-            </div>
-          )}
+          <StockAlerts data={data} />
 
           <div className="dash-row">
             <SalesChart months={months} />
@@ -169,6 +157,30 @@ function AdminDashboard() {
         </div>
       )}
     </>
+  )
+}
+
+function StockAlerts({ data }) {
+  if (data.low_stock_count <= 0 && data.negative_count <= 0) return null
+  return (
+    <div className="alert-row">
+      {data.low_stock_count > 0 && (
+        <Link to="/stock?show=low" className="dash-alert warn">
+          <PackageSearch size={17} />
+          <span>
+            <b>{num(data.low_stock_count)}</b> product{data.low_stock_count === 1 ? ' is' : 's are'} at or below reorder level
+          </span>
+        </Link>
+      )}
+      {data.negative_count > 0 && (
+        <Link to="/stock?show=negative" className="dash-alert critical">
+          <AlertTriangle size={17} />
+          <span>
+            <b>{num(data.negative_count)}</b> stock balance{data.negative_count === 1 ? ' is' : 's are'} below zero. Check the stores.
+          </span>
+        </Link>
+      )}
+    </div>
   )
 }
 
@@ -480,6 +492,73 @@ function CashierDashboard() {
                 <QuickAction to="/receipts?new=1" icon={HandCoins} title="Receive payment" text="Cash, bank or cheque" />
                 <QuickAction to="/stock" icon={Boxes} title="Check stock" text="See stock in every store" />
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ---------- Store keeper: stock only, no money ----------
+
+function StoreDashboard() {
+  const { user } = useAuth()
+  const { data, error } = useDashboard()
+
+  return (
+    <>
+      <PageHeader
+        title={`${greeting()}, ${firstName(user)}`}
+        subtitle="Stock across your stores."
+        actions={
+          <Link to="/stock/new?kind=in" className="btn btn-primary">
+            <PackagePlus size={16} /> Stock in
+          </Link>
+        }
+      />
+
+      <ErrorBanner message={error} />
+      {!data && !error && <Loading />}
+
+      {data && (
+        <div className="dash">
+          <div className="kpi-grid">
+            <Kpi icon={Package} label="Products" value={num(data.counts.products)} foot={<span className="text-muted">Active items</span>} />
+            <Kpi
+              icon={PackageSearch}
+              label="Low stock"
+              value={num(data.low_stock_count)}
+              foot={<span className="text-muted">At or below reorder level</span>}
+            />
+            <Kpi
+              icon={AlertTriangle}
+              label="Below zero"
+              value={num(data.negative_count)}
+              foot={<span className="text-muted">Store balances to check</span>}
+            />
+            <Kpi icon={Boxes} label="Stores" value={num(data.locations.length)} foot={<span className="text-muted">Active locations</span>} />
+          </div>
+
+          <StockAlerts data={data} />
+
+          <div className="dash-row">
+            <LowStock rows={data.low_stock} count={data.low_stock_count} />
+            <div className="dash-stack">
+              <div className="card">
+                <div className="card-head card-head-tight">
+                  <div>
+                    <h3>Quick actions</h3>
+                    <p className="text-secondary">Record a stock movement</p>
+                  </div>
+                </div>
+                <div className="quick-actions">
+                  <QuickAction to="/stock/new?kind=in" icon={PackagePlus} title="Stock in" text="Goods received into a store" />
+                  <QuickAction to="/stock/new?kind=out" icon={PackageMinus} title="Stock out" text="Goods taken out of a store" />
+                  <QuickAction to="/stock/new?kind=transfer" icon={ArrowLeftRight} title="Transfer" text="Move goods between stores" />
+                </div>
+              </div>
+              <StoreSummary rows={data.locations} />
             </div>
           </div>
         </div>

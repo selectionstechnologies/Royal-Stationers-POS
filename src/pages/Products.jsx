@@ -13,7 +13,8 @@ const byName = (a, b) => a.name.localeCompare(b.name)
 const SHOW_MAX = 300
 
 export default function Products() {
-  const { isAdmin } = useAuth()
+  const { can } = useAuth()
+  const canManage = can('products.manage')
   const navigate = useNavigate()
   const [rows, setRows] = useState(null)
   const [stock, setStock] = useState({})
@@ -60,7 +61,7 @@ export default function Products() {
         title="Products"
         subtitle="Items, cartons, prices and stock across all stores."
         actions={
-          isAdmin && (
+          canManage && (
             <>
               <button className="btn btn-secondary" onClick={() => setImporting(true)} disabled={!rows}>
                 <Upload size={16} /> Import
@@ -106,9 +107,9 @@ export default function Products() {
           <EmptyState
             icon={Package}
             title="No products yet"
-            text={isAdmin ? 'Add products one by one, or import them from a CSV file.' : 'Ask an administrator to add products.'}
+            text={canManage ? 'Add products one by one, or import them from a CSV file.' : 'Ask a manager to add products.'}
             action={
-              isAdmin && (
+              canManage && (
                 <div className="empty-actions">
                   <button className="btn btn-secondary btn-sm" onClick={() => setImporting(true)}>
                     <Upload size={15} /> Import CSV
@@ -144,7 +145,7 @@ export default function Products() {
                   <tr
                     key={p.id}
                     className="row-link"
-                    onClick={() => (isAdmin ? setEditing(p) : navigate(`/products/${p.id}/ledger`))}
+                    onClick={() => (canManage ? setEditing(p) : navigate(`/products/${p.id}/ledger`))}
                   >
                     <td className="mono text-secondary hide-sm">{p.code}</td>
                     <td>

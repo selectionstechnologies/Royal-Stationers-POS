@@ -12,6 +12,7 @@ const FILTERS = [
   { value: 'all', label: 'All' },
   { value: 'cash', label: 'Cash' },
   { value: 'credit', label: 'Credit' },
+  { value: 'cheque', label: 'Cheque' },
   { value: 'return', label: 'Returns' },
 ]
 
@@ -19,7 +20,8 @@ const net = (r) => (r.txn_type === 'return' ? -Number(r.total) : Number(r.total)
 
 export default function InvoiceList() {
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { can } = useAuth()
+  const showBy = can('reports')
   const [range, setRange] = useState({ from: monthStart(), to: today() })
   const [rows, setRows] = useState(null)
   const [error, setError] = useState('')
@@ -36,7 +38,7 @@ export default function InvoiceList() {
     () =>
       (rows ?? []).filter((r) => {
         if (filter === 'return' && r.txn_type !== 'return') return false
-        if ((filter === 'cash' || filter === 'credit') && (r.txn_type !== 'sale' || r.payment_mode !== filter)) return false
+        if ((filter === 'cash' || filter === 'credit' || filter === 'cheque') && (r.txn_type !== 'sale' || r.payment_mode !== filter)) return false
         return matchesWords(q, String(r.invoice_no), r.customers?.name, r.customers?.city, r.bilty_no)
       }),
     [rows, q, filter],
@@ -119,7 +121,7 @@ export default function InvoiceList() {
                 <th>Customer</th>
                 <th>Type</th>
                 <th className="hide-sm">Delivery</th>
-                {isAdmin && <th className="hide-sm">By</th>}
+                {showBy && <th className="hide-sm">By</th>}
                 <th className="num">Amount</th>
               </tr>
             </thead>
@@ -139,14 +141,14 @@ export default function InvoiceList() {
                     {DELIVERY_LABELS[r.delivery_mode]}
                     {r.bilty_no && ` · ${r.bilty_no}`}
                   </td>
-                  {isAdmin && <td className="text-secondary hide-sm">{r.created_by_name ?? '—'}</td>}
+                  {showBy && <td className="text-secondary hide-sm">{r.created_by_name ?? '—'}</td>}
                   <td className={`num strong ${r.txn_type === 'return' ? 'text-warning' : ''}`}>{money(net(r))}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={isAdmin ? 6 : 5} className="text-secondary">
+                <td colSpan={showBy ? 6 : 5} className="text-secondary">
                   {filtered.length} invoice{filtered.length === 1 ? '' : 's'} · net of returns
                 </td>
                 <td className="num strong">{money(total)}</td>

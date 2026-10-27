@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, History, Plus, Trash2, UserRound, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Camera, History, Plus, Trash2, UserRound, X } from 'lucide-react'
 import { createInvoice, getDefaultCompany, getPriceHistory, listBalances, listCustomers, listLocations, listProducts, listStockLevels } from '../lib/api'
-import { DELIVERY_LABELS, computeInvoice, formatDate, money, num, qtyText, toQty, today } from '../lib/format'
+import { DELIVERY_LABELS, PAYMENT_LABELS, TXN_LABELS, computeInvoice, formatDate, money, num, qtyText, toQty, today } from '../lib/format'
 import { bestLocation, stockIndex } from '../lib/stock'
 import { customerLabel } from '../lib/customerFields'
 import { ErrorBanner, Field, Loading } from '../components/ui'
 import { CustomerSearch, ProductSearch } from '../components/Pickers'
 import { CustomerModal } from '../components/RecordModals'
+import ChequeModal from '../components/ChequeModal'
 import { useAuth } from '../auth/AuthProvider'
 
 const n = (v) => Number(String(v ?? '').replace(/,/g, '')) || 0
@@ -15,7 +16,8 @@ const n = (v) => Number(String(v ?? '').replace(/,/g, '')) || 0
 export default function InvoiceForm() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const { isAdmin } = useAuth()
+  const { can } = useAuth()
+  const canOverride = can('price.override')
 
   const [ready, setReady] = useState(false)
   const [company, setCompany] = useState(null)
@@ -30,6 +32,8 @@ export default function InvoiceForm() {
   const [date, setDate] = useState(today())
   const [txnType, setTxnType] = useState('sale')
   const [paymentMode, setPaymentMode] = useState('credit')
+  const [chequeFile, setChequeFile] = useState(null)
+  const [chequeOpen, setChequeOpen] = useState(false)
   const [deliveryMode, setDeliveryMode] = useState('counter')
   const [biltyNo, setBiltyNo] = useState('')
   const [items, setItems] = useState([]) // { key, product_id, name, code, unit, carton_qty, min_price, location_id, cartons, loose, unit_price }
@@ -80,9 +84,9 @@ export default function InvoiceForm() {
 
   const totals = useMemo(() => computeInvoice(items, discount, freight), [items, discount, freight])
 
-  // Cash: money taken = bill total, unless the user typed another amount
+  // Cash / cheque: money taken = bill total, unless the user typed another amount
   useEffect(() => {
-    if (!receivedTouched) setReceived(paymentMode === 'cash' ? String(totals.total) : '')
+    if (!receivedTouched) setReceived(paymentMode !== 'credit' ? String(totals.total) : '')
   }, [paymentMode, totals.total, receivedTouched])
 
   if (!ready) return <Loading />
@@ -162,9 +166,10 @@ export default function InvoiceForm() {
   const afterBill = isSale ? prevBalance + totals.total - receivedNum : prevBalance - totals.total + receivedNum
   const overLimit = customer && Number(customer.credit_limit) > 0 && isSale && afterBill > Number(customer.credit_limit)
 
-  const blocking = lines.some((l) => l.short || l.qty <= 0 || n(l.unit_price) < 0 || l.unit_price === '') || (!isAdmin && lines.some((l) => l.belowMin))
+  const blocking = lines.some((l) => l.short || l.qty <= 0 || n(l.unit_price) < 0 || l.unit_price === '') || (!canOverride && lines.some((l) => l.belowMin))
   const discountValid = totals.discount >= 0 && totals.discount <= totals.subtotal
-  const canSave = customer && lines.length > 0 && !blocking && discountValid && totals.freight >= 0 && receivedNum >= 0 && date
+  const chequeMissing = paymentMode === 'cheque' && !chequeFile
+  const canSave = customer && lines.length > 0 && !blocking && discountValid && totals.freight >= 0 && receivedNum >= 0 && date && !chequeMissing
 
   async function handleSave() {
     setSaving(true)
@@ -182,6 +187,7 @@ export default function InvoiceForm() {
         freight,
         received,
         notes,
+        chequeFile,
       })
       navigate(`/invoices/${id}`, { replace: true })
     } catch (e) {
@@ -237,29 +243,40 @@ export default function InvoiceForm() {
             )}
           </Field>
         </div>
-        <Field label="Date">
-          <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
-        </Field>
+        <div className="invoice-head-date">
+          <Field label="Date">
+            <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+        </div>
         <Field label="Type">
-          <div className="segmented segmented-fill">
-            <button type="button" className={isSale ? 'active' : ''} onClick={() => setTxnType('sale')}>
-              Sale
-            </button>
-            <button type="button" className={!isSale ? 'active' : ''} onClick={() => setTxnType('return')}>
-              Return
-            </button>
-          </div>
+          <select className="input" value={txnType} onChange={(e) => setTxnType(e.target.value)}>
+            {Object.entries(TXN_LABELS).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Payment">
-          <div className="segmented segmented-fill">
-            <button type="button" className={paymentMode === 'credit' ? 'active' : ''} onClick={() => setPaymentMode('credit')}>
-              Credit
-            </button>
-            <button type="button" className={paymentMode === 'cash' ? 'active' : ''} onClick={() => setPaymentMode('cash')}>
-              Cash
-            </button>
-          </div>
+          <select
+            className="input"
+            value={paymentMode}
+            onChange={(e) => (e.target.value === 'cheque' ? setChequeOpen(true) : setPaymentMode(e.target.value))}
+          >
+            {Object.entries(PAYMENT_LABELS).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </select>
         </Field>
+        {paymentMode === 'cheque' && (
+          <Field label="Cheque photo">
+            <button type="button" className="btn btn-secondary cheque-btn" onClick={() => setChequeOpen(true)} title={chequeFile?.name}>
+              <Camera size={15} /> <span>{chequeFile ? chequeFile.name : 'Add photo'}</span>
+            </button>
+          </Field>
+        )}
         <Field label="Delivery">
           <select className="input" value={deliveryMode} onChange={(e) => setDeliveryMode(e.target.value)}>
             {Object.entries(DELIVERY_LABELS).map(([k, label]) => (
@@ -398,7 +415,7 @@ export default function InvoiceForm() {
                 {entryBelowMin && (
                   <p className="entry-warn">
                     <AlertTriangle size={14} /> Below minimum price {money(entry.product.min_price)}
-                    {isAdmin ? ' (allowed for administrators).' : '. An administrator must make this sale.'}
+                    {canOverride ? ' (allowed for your role).' : '. A manager or administrator must make this sale.'}
                   </p>
                 )}
               </div>
@@ -421,7 +438,7 @@ export default function InvoiceForm() {
                   </thead>
                   <tbody>
                     {lines.map((l, idx) => (
-                      <tr key={l.key} className={l.short || (l.belowMin && !isAdmin) ? 'row-error' : ''}>
+                      <tr key={l.key} className={l.short || (l.belowMin && !canOverride) ? 'row-error' : ''}>
                         <td className="text-muted line-index">{idx + 1}</td>
                         <td className="line-product">
                           <div className="cell-stack">
@@ -544,6 +561,17 @@ export default function InvoiceForm() {
         </aside>
       </div>
 
+      {chequeOpen && (
+        <ChequeModal
+          file={chequeFile}
+          onClose={() => setChequeOpen(false)}
+          onDone={(f) => {
+            setChequeFile(f)
+            setPaymentMode('cheque')
+            setChequeOpen(false)
+          }}
+        />
+      )}
       {addingCustomer && (
         <CustomerModal
           onClose={() => setAddingCustomer(false)}

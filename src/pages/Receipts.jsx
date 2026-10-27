@@ -11,7 +11,8 @@ import ReceiptModal from '../components/ReceiptModal'
 import { useAuth } from '../auth/AuthProvider'
 
 export default function Receipts() {
-  const { isAdmin } = useAuth()
+  const { can } = useAuth()
+  const canDelete = can('delete')
   const [params, setParams] = useSearchParams()
   const [range, setRange] = useState({ from: monthStart(), to: today() })
   const [rows, setRows] = useState(null)
@@ -96,7 +97,7 @@ export default function Receipts() {
                 <th className="hide-sm">Reference / note</th>
                 <th className="hide-sm">By</th>
                 <th className="num">Amount</th>
-                {isAdmin && <th />}
+                {canDelete && <th />}
               </tr>
             </thead>
             <tbody>
@@ -121,7 +122,7 @@ export default function Receipts() {
                   </td>
                   <td className="text-secondary hide-sm">{r.creator?.name ?? '—'}</td>
                   <td className={`num strong ${Number(r.amount) < 0 ? 'text-critical' : ''}`}>{money(r.amount)}</td>
-                  {isAdmin && (
+                  {canDelete && (
                     <td className="row-actions">
                       {!r.invoice_id && (
                         <button className="icon-btn danger" title="Delete receipt" aria-label="Delete receipt" onClick={() => remove(r)}>
@@ -139,7 +140,7 @@ export default function Receipts() {
                   {filtered.length} receipt{filtered.length === 1 ? '' : 's'}
                 </td>
                 <td className="num strong">{money(total)}</td>
-                {isAdmin && <td />}
+                {canDelete && <td />}
               </tr>
             </tfoot>
           </table>

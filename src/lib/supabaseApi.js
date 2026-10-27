@@ -280,8 +280,21 @@ export async function findInvoiceId(invoiceNo) {
   return row?.id ?? null
 }
 
-// Returns the new invoice id.
-export async function createInvoice({ customerId, items, date, txnType, paymentMode, deliveryMode, biltyNo, discount, freight, received, notes }) {
+// Cheque photos live in the private 'cheques' bucket; the invoice keeps the path.
+export async function uploadChequeImage(file) {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const path = `${new Date().toISOString().slice(0, 7)}/${crypto.randomUUID()}.${ext}`
+  unwrap(await supabase.storage.from('cheques').upload(path, file, { contentType: file.type }))
+  return path
+}
+
+export async function getChequeImageUrl(path) {
+  return unwrap(await supabase.storage.from('cheques').createSignedUrl(path, 60 * 60)).signedUrl
+}
+
+// Returns the new invoice id. A cheque photo is uploaded first, then saved with the invoice.
+export async function createInvoice({ customerId, items, date, txnType, paymentMode, deliveryMode, biltyNo, discount, freight, received, notes, chequeFile }) {
+  const chequeImage = paymentMode === 'cheque' && chequeFile ? await uploadChequeImage(chequeFile) : null
   return unwrap(
     await supabase.rpc('create_invoice', {
       p_customer_id: customerId,
@@ -301,6 +314,7 @@ export async function createInvoice({ customerId, items, date, txnType, paymentM
       p_freight: Number(freight) || 0,
       p_received: Number(received) || 0,
       p_notes: notes || null,
+      p_cheque_image: chequeImage,
     }),
   )
 }

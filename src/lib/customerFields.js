@@ -1,12 +1,12 @@
-// Customer (client / party) fields. `adminOnly` fields are hidden from cashiers.
+// Customer (client / party) fields. `manageOnly` fields need the 'customers.manage' permission.
 export const CUSTOMER_FIELDS = [
   { key: 'name', label: 'Name', required: true, autoFocus: true, full: true, placeholder: 'e.g. Imran Stationers' },
   { key: 'city', label: 'City', placeholder: 'e.g. Dg Khan' },
   { key: 'contact_person', label: 'Contact person' },
   { key: 'phone', label: 'Phone', type: 'tel', placeholder: '03xx xxxxxxx' },
   { key: 'phone2', label: 'Phone 2', type: 'tel' },
-  { key: 'opening_balance', label: 'Opening balance (Rs)', type: 'number', adminOnly: true, signed: true, hint: 'Amount the customer already owes. Use minus if you owe them.' },
-  { key: 'credit_limit', label: 'Credit limit (Rs)', type: 'number', adminOnly: true, placeholder: '0 = no limit' },
+  { key: 'opening_balance', label: 'Opening balance (Rs)', type: 'number', manageOnly: true, signed: true, hint: 'Amount the customer already owes. Use minus if you owe them.' },
+  { key: 'credit_limit', label: 'Credit limit (Rs)', type: 'number', manageOnly: true, placeholder: '0 = no limit' },
   { key: 'ntn', label: 'NTN' },
   { key: 'address', label: 'Address', textarea: true, full: true },
   { key: 'notes', label: 'Notes', textarea: true, full: true },

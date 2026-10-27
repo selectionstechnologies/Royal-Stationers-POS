@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { ChevronDown, Search, X } from 'lucide-react'
 import { matchesWords } from '../lib/stock'
 import { money, qtyText } from '../lib/format'
 import { customerLabel } from '../lib/customerFields'
@@ -7,7 +7,8 @@ import { customerLabel } from '../lib/customerFields'
 const MAX_RESULTS = 40
 
 // Type-to-search list with keyboard support (↑ ↓ Enter Esc). `render(item)` draws one row.
-const SearchBox = forwardRef(function SearchBox({ items, filter, render, onPick, placeholder, autoFocus, emptyText }, ref) {
+// `browse`: also works as a dropdown — click or ↓ with nothing typed lists every item.
+const SearchBox = forwardRef(function SearchBox({ items, filter, render, onPick, placeholder, autoFocus, emptyText, browse }, ref) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
@@ -17,14 +18,15 @@ const SearchBox = forwardRef(function SearchBox({ items, filter, render, onPick,
   useImperativeHandle(ref, () => ({ focus: () => inputRef.current?.focus() }))
 
   const results = useMemo(() => {
-    if (!q.trim()) return []
+    if (!q.trim() && !browse) return []
+    const limit = q.trim() ? MAX_RESULTS : Infinity
     const out = []
     for (const it of items) {
       if (filter(it, q)) out.push(it)
-      if (out.length >= MAX_RESULTS) break
+      if (out.length >= limit) break
     }
     return out
-  }, [items, filter, q])
+  }, [items, filter, q, browse])
 
   useEffect(() => setActive(0), [q])
   useEffect(() => {
@@ -69,17 +71,33 @@ const SearchBox = forwardRef(function SearchBox({ items, filter, render, onPick,
             setQ(e.target.value)
             setOpen(true)
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => q && setOpen(true)}
+          onClick={() => setOpen(true)}
           onKeyDown={onKeyDown}
           autoComplete="off"
         />
-        {q && (
+        {q ? (
           <button type="button" className="input-suffix" onClick={() => setQ('')} aria-label="Clear">
             <X size={15} />
           </button>
+        ) : (
+          browse && (
+            <button
+              type="button"
+              className="input-suffix"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setOpen((o) => !o)
+                inputRef.current?.focus()
+              }}
+              aria-label="Show all"
+            >
+              <ChevronDown size={16} />
+            </button>
+          )
         )}
       </div>
-      {open && q.trim() && (
+      {open && (q.trim() || browse) && (
         <ul className="searchbox-list" ref={listRef} role="listbox">
           {results.map((it, i) => (
             <li key={it.id} role="option" aria-selected={i === active}>
@@ -147,7 +165,8 @@ export function CustomerSearch({ customers, balances, onPick, autoFocus }) {
       filter={customerFilter}
       onPick={onPick}
       autoFocus={autoFocus}
-      placeholder="Search customer by name, city, code or phone"
+      browse
+      placeholder="Select customer"
       emptyText="No customer matches"
       render={(c) => (
         <>

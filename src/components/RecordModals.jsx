@@ -139,8 +139,8 @@ function RecordModal({ title, initial, fields, save, remove, validate, suggestio
 }
 
 export function CustomerModal({ customer, ...props }) {
-  const { isAdmin } = useAuth()
-  const fields = CUSTOMER_FIELDS.filter((f) => isAdmin || !f.adminOnly)
+  const { can } = useAuth()
+  const fields = CUSTOMER_FIELDS.filter((f) => !f.manageOnly || can('customers.manage'))
   const initial = customer
     ? Object.fromEntries([['id', customer.id], ...CUSTOMER_FIELDS.map(({ key }) => [key, customer[key] ?? ''])])
     : EMPTY_CUSTOMER
@@ -151,7 +151,7 @@ export function CustomerModal({ customer, ...props }) {
       fields={fields}
       validate={validateCustomer}
       save={(form) => saveCustomer(customerRow(form, fields), form.id)}
-      remove={isAdmin ? deleteCustomer : null}
+      remove={can('delete') ? deleteCustomer : null}
       {...props}
     />
   )
@@ -159,6 +159,7 @@ export function CustomerModal({ customer, ...props }) {
 
 // `existing` = current products, used to block duplicate names / codes before saving
 export function ProductModal({ product, existing = [], ...props }) {
+  const { can } = useAuth()
   const [suggestions, setSuggestions] = useState({})
   useEffect(() => {
     listLookups().then(setSuggestions).catch(() => {})
@@ -173,7 +174,7 @@ export function ProductModal({ product, existing = [], ...props }) {
       suggestions={suggestions}
       validate={(f) => validateProduct(f, existing)}
       save={saveProduct}
-      remove={deleteProduct}
+      remove={can('delete') ? deleteProduct : null}
       {...props}
     />
   )

@@ -23,9 +23,9 @@ const NAV = [
   {
     section: 'Sales',
     links: [
-      { to: '/invoices', label: 'Sale invoices', icon: ReceiptText },
-      { to: '/receipts', label: 'Receipts', icon: HandCoins },
-      { to: '/customers', label: 'Customers', icon: Users },
+      { to: '/invoices', label: 'Sale invoices', icon: ReceiptText, permission: 'sales' },
+      { to: '/receipts', label: 'Receipts', icon: HandCoins, permission: 'sales' },
+      { to: '/customers', label: 'Customers', icon: Users, permission: 'sales' },
     ],
   },
   {
@@ -33,21 +33,21 @@ const NAV = [
     links: [
       { to: '/products', label: 'Products', icon: Package },
       { to: '/stock', label: 'Stock', icon: Boxes, end: true },
-      { to: '/stock/entries', label: 'Stock entries', icon: ArrowLeftRight, adminOnly: true },
+      { to: '/stock/entries', label: 'Stock entries', icon: ArrowLeftRight, permission: 'stock.manage' },
     ],
   },
   {
     section: 'Administration',
     links: [
-      { to: '/users', label: 'Users', icon: ShieldCheck, adminOnly: true },
-      { to: '/settings', label: 'Settings', icon: SettingsIcon, adminOnly: true },
+      { to: '/users', label: 'Users', icon: ShieldCheck, permission: 'users' },
+      { to: '/settings', label: 'Settings', icon: SettingsIcon, permission: 'settings' },
     ],
   },
 ]
 
 export default function Layout() {
-  const { user, isAdmin, signOut } = useAuth()
-  const nav = NAV.map((g) => ({ ...g, links: g.links.filter((l) => isAdmin || !l.adminOnly) })).filter((g) => g.links.length)
+  const { user, can, signOut } = useAuth()
+  const nav = NAV.map((g) => ({ ...g, links: g.links.filter((l) => !l.permission || can(l.permission)) })).filter((g) => g.links.length)
   const [open, setOpen] = useState(false)
   const location = useLocation()
 

@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Eye, EyeOff, KeyRound, Pencil, Plus, Power, ShieldCheck, Trash2, UserRound } from 'lucide-react'
+import { Briefcase, Eye, EyeOff, KeyRound, Pencil, Plus, Power, ShieldCheck, Trash2, UserRound, Warehouse } from 'lucide-react'
 import { createUser, deleteUser, listUsers, setUserPassword, updateUser } from '../lib/api'
-import { ROLE_LABELS, formatDate, initials } from '../lib/format'
+import { formatDate, initials } from '../lib/format'
+import { ROLES, ROLE_LABELS } from '../lib/permissions'
 import { useAuth } from '../auth/AuthProvider'
 import { ErrorBanner, Field, Loading, Modal, PageHeader, StatusBadge } from '../components/ui'
 
-const ROLE_OPTIONS = [
-  { value: 'cashier', label: 'Cashier', text: 'Dashboard, quotations, invoices. Can add customers. Cannot edit or delete.' },
-  { value: 'admin', label: 'Administrator', text: 'Full access: catalog, customers, users, settings, payments.' },
-]
+const ROLE_ICONS = { admin: ShieldCheck, manager: Briefcase, cashier: UserRound, storekeeper: Warehouse }
 
 export default function Users() {
   const { user: me } = useAuth()
@@ -96,10 +94,7 @@ export default function Users() {
                       </div>
                     </td>
                     <td>
-                      <span className={`role-pill role-${u.role}`}>
-                        {u.role === 'admin' ? <ShieldCheck size={13} /> : <UserRound size={13} />}
-                        {ROLE_LABELS[u.role]}
-                      </span>
+                      <RolePill role={u.role} />
                     </td>
                     <td>
                       <StatusBadge status={u.active ? 'active' : 'inactive'} />
@@ -161,6 +156,16 @@ export default function Users() {
       )}
       {modal?.kind === 'password' && <PasswordModal user={modal.user} onClose={() => setModal(null)} />}
     </>
+  )
+}
+
+function RolePill({ role }) {
+  const Icon = ROLE_ICONS[role] ?? UserRound
+  return (
+    <span className={`role-pill role-${role}`}>
+      <Icon size={13} />
+      {ROLE_LABELS[role] ?? role}
+    </span>
   )
 }
 
@@ -256,7 +261,7 @@ function UserModal({ user, isMe, onClose, onSaved }) {
         <div className="span-2">
           <span className="field-label">Role</span>
           <div className="role-options">
-            {ROLE_OPTIONS.map((r) => (
+            {ROLES.map((r) => (
               <label key={r.value} className={`role-option ${form.role === r.value ? 'selected' : ''} ${isMe ? 'disabled' : ''}`}>
                 <input
                   type="radio"

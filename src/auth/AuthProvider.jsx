@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getProfile } from '../lib/supabaseApi'
+import { can } from '../lib/permissions'
 
 const AuthContext = createContext(null)
 
@@ -47,7 +48,8 @@ export function AuthProvider({ children }) {
   const value = {
     user: user ?? null,
     loading: user === undefined,
-    isAdmin: user?.role === 'admin',
+    // can('sales'), can('delete') ... see src/lib/permissions.js
+    can: (permission) => can(user?.role, permission),
     signIn,
     signOut: () => supabase.auth.signOut(),
   }
@@ -57,12 +59,13 @@ export function AuthProvider({ children }) {
 
 export const useAuth = () => useContext(AuthContext)
 
-export function RequireAuth({ children, adminOnly = false }) {
-  const { user, loading, isAdmin } = useAuth()
+// `permission`: only users whose role has it may open the page (see src/lib/permissions.js)
+export function RequireAuth({ children, permission }) {
+  const { user, loading, can } = useAuth()
   const location = useLocation()
 
   if (loading) return <div className="screen-center"><div className="spinner" /></div>
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />
-  if (adminOnly && !isAdmin) return <Navigate to="/" replace />
+  if (permission && !can(permission)) return <Navigate to="/" replace />
   return children
 }

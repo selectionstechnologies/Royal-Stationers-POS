@@ -35,12 +35,13 @@ create table public.profiles (
   id          uuid primary key references auth.users(id) on delete cascade,
   email       text not null,
   name        text not null,
-  role        text not null default 'cashier' check (role in ('admin', 'cashier')),
+  role        text not null default 'cashier' check (role in ('admin', 'manager', 'cashier', 'storekeeper')),
   active      boolean not null default true,
   created_at  timestamptz not null default now()
 );
 
--- New auth users get a profile. The very first user becomes admin.
+-- New auth users get a profile. The very first user becomes admin; otherwise the role
+-- comes from app_metadata (set by the admin-users Edge Function), defaulting to cashier.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -53,9 +54,10 @@ begin
     new.id,
     new.email,
     coalesce(nullif(new.raw_user_meta_data->>'name', ''), split_part(new.email, '@', 1)),
-    case when new.raw_app_meta_data->>'role' = 'admin'
-           or not exists (select 1 from public.profiles where role = 'admin')
-         then 'admin' else 'cashier' end
+    case when not exists (select 1 from public.profiles where role = 'admin') then 'admin'
+         when new.raw_app_meta_data->>'role' in ('admin', 'manager', 'cashier', 'storekeeper')
+           then new.raw_app_meta_data->>'role'
+         else 'cashier' end
   )
   on conflict (id) do nothing;
   return new;
@@ -73,6 +75,31 @@ as $$ select exists (select 1 from profiles where id = auth.uid() and active) $$
 create or replace function public.is_admin()
 returns boolean language sql stable security definer set search_path = public
 as $$ select exists (select 1 from profiles where id = auth.uid() and active and role = 'admin') $$;
+
+-- Roles and what they may do. Keep in sync with src/lib/permissions.js.
+--   admin        everything
+--   manager      everything except users, settings and deleting
+--   cashier      sales, receipts, adding customers
+--   storekeeper  stock entries; no sales, money or customers
+create or replace function public.has_permission(p_permission text)
+returns boolean language sql stable security definer set search_path = public
+as $$
+  select exists (
+    select 1 from profiles
+     where id = auth.uid() and active
+       and case p_permission
+             when 'sales'            then role in ('admin', 'manager', 'cashier')
+             when 'price.override'   then role in ('admin', 'manager')
+             when 'customers.manage' then role in ('admin', 'manager')
+             when 'products.manage'  then role in ('admin', 'manager')
+             when 'stock.manage'     then role in ('admin', 'manager', 'storekeeper')
+             when 'reports'          then role in ('admin', 'manager')
+             when 'delete'           then role = 'admin'
+             when 'users'            then role = 'admin'
+             when 'settings'         then role = 'admin'
+             else false
+           end)
+$$;
 
 -- ---------- Product lookups ("Company" = maker, e.g. China, Dollar, Piano) ----------
 create table public.product_companies (
@@ -184,9 +211,10 @@ create table public.invoices (
   customer_id    uuid not null references public.customers(id),
   invoice_date   date not null default current_date,
   txn_type       text not null default 'sale' check (txn_type in ('sale', 'return')),
-  payment_mode   text not null default 'credit' check (payment_mode in ('cash', 'credit')),
+  payment_mode   text not null default 'credit' check (payment_mode in ('cash', 'credit', 'cheque')),
   delivery_mode  text not null default 'counter' check (delivery_mode in ('counter', 'bilty', 'delivery')),
   bilty_no       text,
+  cheque_image   text,  -- path in the 'cheques' storage bucket (cheque payments)
   subtotal       numeric(14,2) not null,
   discount       numeric(14,2) not null default 0,
   freight        numeric(14,2) not null default 0,
@@ -382,8 +410,8 @@ as $$
 declare
   v_id uuid := nullif(p->>'id', '')::uuid;
 begin
-  if not public.is_admin() then
-    raise exception 'Only an administrator can change products';
+  if not public.has_permission('products.manage') then
+    raise exception 'Only a manager or administrator can change products';
   end if;
 
   if v_id is null then
@@ -440,8 +468,8 @@ declare
   v_entry uuid;
   v_count integer := 0;
 begin
-  if not public.is_admin() then
-    raise exception 'Only an administrator can import products';
+  if not public.has_permission('products.manage') then
+    raise exception 'Only a manager or administrator can import products';
   end if;
   if p_rows is null or jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) = 0 then
     raise exception 'No rows to import';
@@ -497,8 +525,8 @@ declare
   v_bad   text;
   v_need  jsonb;
 begin
-  if not public.is_admin() then
-    raise exception 'Only an administrator can post stock entries';
+  if not public.has_permission('stock.manage') then
+    raise exception 'You do not have permission to post stock entries';
   end if;
   if p_kind not in ('opening', 'in', 'out', 'transfer') then
     raise exception 'Unknown entry type';
@@ -576,7 +604,8 @@ create or replace function public.create_invoice(
   p_discount       numeric default 0,
   p_freight        numeric default 0,
   p_received       numeric default 0,
-  p_notes          text    default null
+  p_notes          text    default null,
+  p_cheque_image   text    default null
 )
 returns uuid
 language plpgsql
@@ -594,11 +623,17 @@ declare
   v_bad       text;
   v_need      jsonb;
 begin
-  if not public.is_active_user() then
-    raise exception 'Your account is not active';
+  if not public.has_permission('sales') then
+    raise exception 'You do not have permission to make invoices';
   end if;
   if p_txn_type not in ('sale', 'return') then
     raise exception 'Unknown transaction type';
+  end if;
+  if p_payment_mode not in ('cash', 'credit', 'cheque') then
+    raise exception 'Unknown payment type';
+  end if;
+  if p_payment_mode = 'cheque' and nullif(trim(p_cheque_image), '') is null then
+    raise exception 'Upload a photo of the cheque';
   end if;
   if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
     raise exception 'Add at least one product';
@@ -633,13 +668,13 @@ begin
     raise exception 'Enter a quantity for: %', v_bad;
   end if;
 
-  -- Rate below the minimum price: only an administrator may do that
-  if p_txn_type = 'sale' and not public.is_admin() then
+  -- Rate below the minimum price: only a manager or administrator may do that
+  if p_txn_type = 'sale' and not public.has_permission('price.override') then
     select string_agg(format('%s (min %s)', p.name, trim_scale(p.min_price)), ', ') into v_bad
       from private.parse_lines(p_items) x join products p on p.id = x.product_id
      where p.min_price > 0 and x.unit_price < p.min_price;
     if v_bad is not null then
-      raise exception 'Rate is below the minimum price for: %. Ask an administrator.', v_bad;
+      raise exception 'Rate is below the minimum price for: %. Ask a manager.', v_bad;
     end if;
   end if;
 
@@ -672,9 +707,10 @@ begin
 
   select coalesce(sum(debit - credit), 0) into v_prev from customer_ledger where customer_id = p_customer_id;
 
-  insert into invoices (company_id, customer_id, invoice_date, txn_type, payment_mode, delivery_mode, bilty_no,
+  insert into invoices (company_id, customer_id, invoice_date, txn_type, payment_mode, delivery_mode, bilty_no, cheque_image,
                         subtotal, discount, freight, total, prev_balance, received, notes, created_by)
   values (v_company.id, p_customer_id, v_date, p_txn_type, p_payment_mode, p_delivery_mode, nullif(trim(p_bilty_no), ''),
+          case when p_payment_mode = 'cheque' then trim(p_cheque_image) end,
           v_subtotal, p_discount, p_freight, v_total, v_prev, p_received, nullif(trim(p_notes), ''), auth.uid())
   returning id, invoice_no into v_id, v_no;
 
@@ -697,7 +733,7 @@ begin
     insert into receipts (customer_id, receipt_date, amount, method, note, invoice_id, created_by)
     values (p_customer_id, v_date,
             case when p_txn_type = 'sale' then p_received else -p_received end,
-            'cash',
+            case when p_payment_mode = 'cheque' then 'cheque' else 'cash' end,
             case when p_txn_type = 'sale' then 'With invoice #' else 'Refund for return #' end || v_no,
             v_id, auth.uid());
   end if;
@@ -720,19 +756,23 @@ language sql stable security invoker set search_path = public as $$
 $$;
 
 -- ---------- get_dashboard(): every dashboard number in one call ----------
+-- Without the 'reports' permission, sales figures cover only the caller's own invoices
+-- and receivables are hidden. RLS still applies (security invoker).
 create or replace function public.get_dashboard()
 returns jsonb
 language sql stable security invoker set search_path = public as $$
   with
+  me as (select public.has_permission('reports') as see_all),
   month0 as (select date_trunc('month', current_date)::date as d),
   inv as (
     select i.*, case when i.txn_type = 'return' then -i.total else i.total end as net
       from invoices i
      where i.invoice_date >= ((select d from month0) - interval '11 months')::date
+       and ((select see_all from me) or i.created_by = auth.uid())
   ),
   recent30 as (select * from inv where invoice_date > current_date - 30),
   stock as (select product_id, location_id, qty from stock_levels),
-  bal as (select b.customer_id, b.balance from customer_balances b)
+  bal as (select b.customer_id, b.balance from customer_balances b where (select see_all from me))
   select jsonb_build_object(
     'today_sales',  (select coalesce(sum(net), 0) from inv where invoice_date = current_date),
     'today_count',  (select count(*) from inv where invoice_date = current_date and txn_type = 'sale'),
@@ -781,6 +821,7 @@ language sql stable security invoker set search_path = public as $$
                         c.name as customer_name, c.city as customer_city, pr.name as created_by_name
                    from invoices i join customers c on c.id = i.customer_id
                    left join profiles pr on pr.id = i.created_by
+                  where (select see_all from me)
                   order by i.created_at desc limit 8) x),
     'mine', jsonb_build_object(
       'today',       (select coalesce(sum(net), 0) from inv where created_by = auth.uid() and invoice_date = current_date),
@@ -805,22 +846,24 @@ $$;
 revoke execute on function public.save_product(jsonb) from public, anon;
 revoke execute on function public.import_products(jsonb, uuid) from public, anon;
 revoke execute on function public.post_stock_entry(text, uuid, jsonb, uuid, date, text) from public, anon;
-revoke execute on function public.create_invoice(uuid, jsonb, date, text, text, text, text, numeric, numeric, numeric, text) from public, anon;
+revoke execute on function public.create_invoice(uuid, jsonb, date, text, text, text, text, numeric, numeric, numeric, text, text) from public, anon;
 revoke execute on function public.price_history(uuid, uuid, integer) from public, anon;
 revoke execute on function public.get_dashboard() from public, anon;
 grant execute on function public.save_product(jsonb) to authenticated;
 grant execute on function public.import_products(jsonb, uuid) to authenticated;
 grant execute on function public.post_stock_entry(text, uuid, jsonb, uuid, date, text) to authenticated;
-grant execute on function public.create_invoice(uuid, jsonb, date, text, text, text, text, numeric, numeric, numeric, text) to authenticated;
+grant execute on function public.create_invoice(uuid, jsonb, date, text, text, text, text, numeric, numeric, numeric, text, text) to authenticated;
 grant execute on function public.price_history(uuid, uuid, integer) to authenticated;
 grant execute on function public.get_dashboard() to authenticated;
 grant execute on function public.is_active_user() to authenticated;
 grant execute on function public.is_admin() to authenticated;
+grant execute on function public.has_permission(text) to authenticated;
 
 -- ---------- Row Level Security ----------
--- Everyone active can read everything. Only admins change master data.
--- Invoices, stock and receipts are written by the functions above;
--- admins may delete them (stock and account reverse automatically).
+-- Everyone active can read products, stores and stock. Customers, invoices and receipts
+-- are readable only by roles with 'sales' (not storekeepers). Only admins change settings
+-- and delete. Invoices, stock and receipts are written by the functions above;
+-- deleting them reverses stock and account automatically.
 alter table public.companies          enable row level security;
 alter table public.profiles           enable row level security;
 alter table public.product_companies  enable row level security;
@@ -838,10 +881,15 @@ alter table public.stock_moves        enable row level security;
 do $$
 declare t text;
 begin
-  foreach t in array array['companies','product_companies','brands','categories','products','locations','customers',
-                           'invoices','invoice_items','receipts','stock_entries','stock_moves']
+  foreach t in array array['companies','product_companies','brands','categories','products','locations',
+                           'stock_entries','stock_moves']
   loop
     execute format('create policy "active users read" on public.%I for select to authenticated using (public.is_active_user())', t);
+  end loop;
+
+  foreach t in array array['customers','invoices','invoice_items','receipts']
+  loop
+    execute format('create policy "sales read" on public.%I for select to authenticated using (public.has_permission(''sales''))', t);
   end loop;
 
   foreach t in array array['companies','product_companies','brands','categories','products','locations','customers']
@@ -856,15 +904,33 @@ begin
 end $$;
 
 -- Cashiers may add customers (without an opening balance) and take payments
-create policy "active users add customers" on public.customers
-  for insert to authenticated with check (public.is_active_user() and opening_balance = 0);
+create policy "sales add customers" on public.customers
+  for insert to authenticated with check (public.has_permission('sales') and opening_balance = 0);
 
-create policy "active users add receipts" on public.receipts
-  for insert to authenticated with check (public.is_active_user() and invoice_id is null and created_by = auth.uid());
+-- Managers add and edit customers, including opening balance and credit limit
+create policy "managers add customers" on public.customers
+  for insert to authenticated with check (public.has_permission('customers.manage'));
+create policy "managers edit customers" on public.customers
+  for update to authenticated using (public.has_permission('customers.manage'))
+  with check (public.has_permission('customers.manage'));
 
-create policy "read own or admin" on public.profiles
-  for select to authenticated using (id = auth.uid() or public.is_admin());
+create policy "sales add receipts" on public.receipts
+  for insert to authenticated with check (public.has_permission('sales') and invoice_id is null and created_by = auth.uid());
+
+-- Admins and managers see everyone's name (the "By" columns); others only themselves
+create policy "read own or reports" on public.profiles
+  for select to authenticated using (id = auth.uid() or public.has_permission('reports'));
 -- No write policies on profiles: changes go through the admin-users Edge Function (service role).
+
+-- ---------- Cheque photos (private storage bucket) ----------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('cheques', 'cheques', false, 5242880, array['image/jpeg', 'image/png', 'image/webp', 'image/heic'])
+on conflict (id) do nothing;
+
+create policy "sales upload cheques" on storage.objects
+  for insert to authenticated with check (bucket_id = 'cheques' and public.has_permission('sales'));
+create policy "sales read cheques" on storage.objects
+  for select to authenticated using (bucket_id = 'cheques' and public.has_permission('sales'));
 
 -- ---------- Starting data ----------
 insert into public.companies (name, is_default) values ('Royal Stationers', true);

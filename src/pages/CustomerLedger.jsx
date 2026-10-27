@@ -14,7 +14,8 @@ const KIND_LABELS = { opening: 'Opening', sale: 'Sale', return: 'Return', receip
 export default function CustomerLedger() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { can } = useAuth()
+  const canEdit = can('customers.manage')
   const [customer, setCustomer] = useState(null)
   const [entries, setEntries] = useState(null)
   const [error, setError] = useState('')
@@ -79,7 +80,7 @@ export default function CustomerLedger() {
           <h1>Customer ledger</h1>
         </div>
         <div className="page-actions">
-          {isAdmin && (
+          {canEdit && (
             <button className="btn btn-secondary" onClick={() => setModal('edit')}>
               <Pencil size={16} /> Edit
             </button>

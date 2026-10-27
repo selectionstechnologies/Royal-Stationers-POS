@@ -76,6 +76,7 @@ export default function ProductLedger() {
 
   function describe(m) {
     const entry = m.stock_entries
+    if (!m.invoices && !entry) return KIND_LABELS[m.kind]
     if (m.invoices) {
       const c = m.invoices.customers
       return (

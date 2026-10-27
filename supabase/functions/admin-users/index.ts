@@ -9,6 +9,13 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+// Keep in sync with src/lib/permissions.js and the profiles.role check in setup.sql
+const ROLES = ['admin', 'manager', 'cashier', 'storekeeper']
+const parseRole = (role: unknown) => {
+  if (!ROLES.includes(role as string)) throw new Error('Choose a valid role.')
+  return role as string
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
@@ -46,7 +53,7 @@ Deno.serve(async (req) => {
       case 'create': {
         const email = String(body.email ?? '').trim().toLowerCase()
         const name = String(body.name ?? '').trim()
-        const role = body.role === 'admin' ? 'admin' : 'cashier'
+        const role = parseRole(body.role ?? 'cashier')
         if (!name) throw new Error('Name is required.')
         checkPassword(body.password)
         const { data, error } = await admin.auth.admin.createUser({
@@ -66,7 +73,7 @@ Deno.serve(async (req) => {
         const target = await getTarget(body.id)
         const next = {
           name: body.name !== undefined ? String(body.name).trim() : target.name,
-          role: body.role !== undefined ? (body.role === 'admin' ? 'admin' : 'cashier') : target.role,
+          role: body.role !== undefined ? parseRole(body.role) : target.role,
           active: body.active !== undefined ? Boolean(body.active) : target.active,
         }
         if (!next.name) throw new Error('Name is required.')

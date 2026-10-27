@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { AlertCircle, Ban, Banknote, CheckCircle2, Clock, ReceiptText, RotateCcw, X } from 'lucide-react'
+import { AlertCircle, Ban, Banknote, CheckCircle2, Clock, Landmark, ReceiptText, RotateCcw, X } from 'lucide-react'
 
 export function PageHeader({ title, subtitle, actions }) {
   return (
@@ -31,6 +31,12 @@ export function StatusBadge({ status }) {
 }
 
 // Sale / return and cash / credit, always icon + label
+const SALE_BADGES = {
+  cash: { Icon: Banknote, tone: 'status-good', label: 'Cash sale' },
+  cheque: { Icon: Landmark, tone: 'status-good', label: 'Cheque sale' },
+  credit: { Icon: ReceiptText, tone: 'status-info', label: 'Credit sale' },
+}
+
 export function TxnBadge({ type, mode }) {
   if (type === 'return') {
     return (
@@ -40,12 +46,11 @@ export function TxnBadge({ type, mode }) {
       </span>
     )
   }
-  const cash = mode === 'cash'
-  const Icon = cash ? Banknote : ReceiptText
+  const { Icon, tone, label } = SALE_BADGES[mode] ?? SALE_BADGES.credit
   return (
-    <span className={`status ${cash ? 'status-good' : 'status-info'}`}>
+    <span className={`status ${tone}`}>
       <Icon size={13} strokeWidth={2.2} />
-      {cash ? 'Cash sale' : 'Credit sale'}
+      {label}
     </span>
   )
 }

@@ -17,7 +17,7 @@ import StockEntryForm from './pages/StockEntryForm'
 import Users from './pages/Users'
 import Settings from './pages/Settings'
 
-const adminOnly = (el) => <RequireAuth adminOnly>{el}</RequireAuth>
+const only = (permission, el) => <RequireAuth permission={permission}>{el}</RequireAuth>
 
 export default function App() {
   return (
@@ -31,19 +31,19 @@ export default function App() {
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="invoices" element={<InvoiceList />} />
-        <Route path="invoices/new" element={<InvoiceForm />} />
-        <Route path="invoices/:id" element={<InvoiceDetail />} />
-        <Route path="receipts" element={<Receipts />} />
-        <Route path="customers" element={<Customers />} />
-        <Route path="customers/:id" element={<CustomerLedger />} />
+        <Route path="invoices" element={only('sales', <InvoiceList />)} />
+        <Route path="invoices/new" element={only('sales', <InvoiceForm />)} />
+        <Route path="invoices/:id" element={only('sales', <InvoiceDetail />)} />
+        <Route path="receipts" element={only('sales', <Receipts />)} />
+        <Route path="customers" element={only('sales', <Customers />)} />
+        <Route path="customers/:id" element={only('sales', <CustomerLedger />)} />
         <Route path="products" element={<Products />} />
         <Route path="products/:id/ledger" element={<ProductLedger />} />
         <Route path="stock" element={<Stock />} />
-        <Route path="stock/entries" element={adminOnly(<StockEntries />)} />
-        <Route path="stock/new" element={adminOnly(<StockEntryForm />)} />
-        <Route path="users" element={adminOnly(<Users />)} />
-        <Route path="settings" element={adminOnly(<Settings />)} />
+        <Route path="stock/entries" element={only('stock.manage', <StockEntries />)} />
+        <Route path="stock/new" element={only('stock.manage', <StockEntryForm />)} />
+        <Route path="users" element={only('users', <Users />)} />
+        <Route path="settings" element={only('settings', <Settings />)} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

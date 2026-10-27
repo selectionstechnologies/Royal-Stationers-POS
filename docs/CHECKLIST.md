@@ -64,7 +64,10 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 - [x] Totals calculated in the database (`get_dashboard()`), not in the browser
 
 ### 6. Users & settings (SEC-01, SEC-02, SEC-05)
-- [x] Admin / cashier roles (existing)
+- [x] Four roles: Administrator, Manager, Cashier, Store keeper (`src/lib/permissions.js`, `has_permission()` in the database)
+  - Enforced in the database (RLS + functions), not only hidden in the menu
+  - Store keepers cannot read customers, invoices or receipts; get a stock-only dashboard
+  - Existing databases: run `supabase/upgrade_002_four_roles.sql` once, then redeploy `admin-users`
 - [x] Business profile (name, address, phones) on prints
 - [x] Store locations managed in Settings
 - [x] Stock rule: allow / block negative stock
@@ -103,5 +106,6 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 ## Before go-live
 - [ ] Data transfer from old MIS (products, customers, balances, stock) (M-01)
 - [ ] Set invoice number to continue after the old software (`setval`)
-- [ ] Deploy `admin-users` Edge Function
+- [ ] Run `supabase/upgrade_002_four_roles.sql` on the production database (once)
+- [ ] Deploy `admin-users` Edge Function (needed for the new roles)
 - [ ] Parallel run + staff training (M-03, M-04)

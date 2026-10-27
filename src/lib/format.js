@@ -43,7 +43,7 @@ export const initials = (text = '') =>
 
 export const BUSINESS_NAME = 'Royal Stationers'
 
-export const ROLE_LABELS = { admin: 'Administrator', cashier: 'Cashier' }
+export { ROLE_LABELS } from './permissions'
 
 const round2 = (n) => Math.round(n * 100) / 100
 
@@ -64,19 +64,20 @@ export function splitQty(qty, cartonQty) {
 }
 
 // 1836 Pc with 36/ctn -> "51 ctn", 1840 -> "51 ctn + 4 Pc", carton qty 1 -> "1,840 Pc"
-export function qtyText(qty, unit, cartonQty) {
+// short: drop the unit after loose when cartons are shown ("51 ctn + 4")
+export function qtyText(qty, unit, cartonQty, { short = false } = {}) {
   const n = Number(qty) || 0
   const neg = n < 0 ? '−' : ''
   if (!(Number(cartonQty) > 1)) return `${neg}${num(Math.abs(n))} ${unit}`
   const { cartons, loose } = splitQty(Math.abs(n), cartonQty)
   const parts = []
   if (cartons) parts.push(`${num(cartons)} ctn`)
-  if (loose || !cartons) parts.push(`${num(loose)} ${unit}`)
+  if (loose || !cartons) parts.push(short && cartons ? num(loose) : `${num(loose)} ${unit}`)
   return neg + parts.join(' + ')
 }
 
 export const TXN_LABELS = { sale: 'Sale', return: 'Return' }
-export const PAYMENT_LABELS = { cash: 'Cash', credit: 'Credit' }
+export const PAYMENT_LABELS = { credit: 'Credit', cash: 'Cash', cheque: 'Cheque' }
 export const DELIVERY_LABELS = { counter: 'Counter', bilty: 'Bilty', delivery: 'Delivery' }
 export const METHOD_LABELS = { cash: 'Cash', bank: 'Bank', cheque: 'Cheque' }
 export const ENTRY_LABELS = { opening: 'Opening stock', in: 'Stock in', out: 'Stock out', transfer: 'Transfer' }
