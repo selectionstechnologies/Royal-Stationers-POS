@@ -12,9 +12,9 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 ### 0. Foundation
 - [x] Rebrand to Royal Stationers (name, logo, titles, storage keys)
 - [x] Supabase only (remove browser demo/mock mode)
-- [x] Fresh database setup file: `supabase/setup.sql` (run once on a new project)
+- [x] Fresh database setup file: `backend/supabase/setup.sql` (run once on a new project)
 - [x] Load more than 1,000 rows (Supabase page limit) for products / customers / stock
-- [x] Move old template SQL out of the way (`supabase/_old_template/`)
+- [x] Removed the old template SQL (Rizwan Global Trader); still in git history before the folder restructure
 
 ### 1. Products (P-01 … P-06, P-10)
 - [x] Code (auto 6-digit if blank), name, company, brand, category
@@ -64,10 +64,10 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 - [x] Totals calculated in the database (`get_dashboard()`), not in the browser
 
 ### 6. Users & settings (SEC-01, SEC-02, SEC-05)
-- [x] Four roles: Administrator, Manager, Cashier, Store keeper (`src/lib/permissions.js`, `has_permission()` in the database)
+- [x] Four roles: Administrator, Manager, Cashier, Store keeper (`frontend/src/shared/lib/permissions.js`, `has_permission()` in the database)
   - Enforced in the database (RLS + functions), not only hidden in the menu
   - Store keepers cannot read customers, invoices or receipts; get a stock-only dashboard
-  - Existing databases: run `supabase/upgrade_002_four_roles.sql` once, then redeploy `admin-users`
+  - Existing databases: run `backend/supabase/migrations/upgrade_002_four_roles.sql` once, then redeploy `admin-users`
 - [x] Business profile (name, address, phones) on prints
 - [x] Store locations managed in Settings
 - [x] Stock rule: allow / block negative stock
@@ -82,9 +82,9 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 
 ### Setup (new Supabase project)
 1. Create a project, copy URL + publishable key into `.env`
-2. SQL Editor → run `supabase/setup.sql` once
+2. SQL Editor → run `backend/supabase/setup.sql` once
 3. Authentication → add the first user (becomes admin)
-4. Deploy `supabase/functions/admin-users` to manage users from the app
+4. Deploy `backend/supabase/functions/admin-users` to manage users from the app
 5. `npm run dev`, then Settings → business details, stores
 
 ## Phase 2 – Purchase & imports (after client review)
@@ -101,15 +101,15 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 - [x] Admin can reopen a received container (stock removed, costs restored) unless the stock is already sold
 - [x] Store keeper sees containers and receives them, without prices; cashier sees nothing
 - [x] Database tested on Postgres (PGlite): roles, landed cost, average cost, receive, reopen, upgrade path
-- Existing databases: run `supabase/upgrade_004_containers.sql` once, **before** deploying this frontend
+- Existing databases: run `backend/supabase/migrations/upgrade_004_containers.sql` once, **before** deploying this frontend
 
 ### Still to do
 - [x] Container lots (Level 2, built 28 Oct 2026): what is left of each container and its profit, first in first out
   - Worked out from stock moves (no extra data): deleting bills, returns and reopening stay correct
   - Container page: "Left" per product + profit card (admin/manager); containers list: % left; product ledger: left per container
-  - Existing databases: run `supabase/upgrade_006_container_lots.sql` once (after 004 containers)
+  - Existing databases: run `backend/supabase/migrations/upgrade_006_container_lots.sql` once (after 004 containers)
 - [x] Mixed containers: supplier per packing list line (blank = container's supplier / agent); CSV `supplier` column
-  - Existing databases: run `supabase/upgrade_007_item_supplier.sql` once
+  - Existing databases: run `backend/supabase/migrations/upgrade_007_item_supplier.sql` once
 - [ ] Supplier ledger, payments (A-02, A-04)
 - [ ] Local purchase invoice (PI-01), purchase return **(client)**
 - [ ] Profit report, container report (R-07, R-10)
@@ -127,7 +127,7 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 ## Before go-live
 - [ ] Data transfer from old MIS (products, customers, balances, stock) (M-01)
 - [ ] Set invoice number to continue after the old software (`setval`)
-- [ ] Run the upgrades on the production database, in number order, each once (see `supabase/README.md`):
+- [ ] Run the upgrades on the production database, in number order, each once (see `backend/supabase/README.md`):
   - [ ] `upgrade_002_four_roles.sql`
   - [ ] `upgrade_003_cheque_payment.sql`
   - [ ] `upgrade_004_containers.sql`
