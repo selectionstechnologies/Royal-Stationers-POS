@@ -1,6 +1,6 @@
 -- =============================================================
--- Royal Stationers - upgrade 006: a supplier per packing list line (mixed containers)
--- Needs upgrade_003_containers.sql to have been run first.
+-- Royal Stationers - upgrade 007: a supplier per packing list line (mixed containers)
+-- Needs upgrade_004_containers.sql to have been run first.
 -- New projects do not need this: setup.sql already includes it.
 --
 -- Run ONCE: Supabase Dashboard > SQL Editor > New query > paste > Run.

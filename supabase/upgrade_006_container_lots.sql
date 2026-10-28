@@ -1,6 +1,6 @@
 -- =============================================================
--- Royal Stationers - upgrade 005: container lots (what is left of each container, and its profit)
--- Needs upgrade_003_containers.sql to have been run first.
+-- Royal Stationers - upgrade 006: container lots (what is left of each container, and its profit)
+-- Needs upgrade_004_containers.sql to have been run first.
 -- New projects do not need this: setup.sql already includes it.
 --
 -- Run ONCE: Supabase Dashboard > SQL Editor > New query > paste > Run.

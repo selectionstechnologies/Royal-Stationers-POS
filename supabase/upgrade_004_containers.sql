@@ -1,6 +1,6 @@
 -- =============================================================
--- Royal Stationers - upgrade 003: suppliers and import containers (Level 1)
--- For a database set up before containers existed (after upgrade 002).
+-- Royal Stationers - upgrade 004: suppliers and import containers (Level 1)
+-- For a database set up before containers existed (after upgrades 002 and 003).
 -- New projects do not need this: setup.sql already includes it.
 --
 -- Run ONCE: Supabase Dashboard > SQL Editor > New query > paste > Run.

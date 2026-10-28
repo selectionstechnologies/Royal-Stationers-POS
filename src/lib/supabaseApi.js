@@ -453,7 +453,7 @@ export async function deleteContainer(id) {
   return unwrap(await supabase.from('containers').delete().eq('id', id))
 }
 
-// Container lots need upgrade_005_container_lots.sql. They are extra information on pages that
+// Container lots need upgrade_006_container_lots.sql. They are extra information on pages that
 // work without them, so callers use `optional()` to show the page even when that upgrade is missing.
 export const optional = (promise, fallback = {}) =>
   promise.catch((e) => {

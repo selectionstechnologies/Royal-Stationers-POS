@@ -101,15 +101,15 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 - [x] Admin can reopen a received container (stock removed, costs restored) unless the stock is already sold
 - [x] Store keeper sees containers and receives them, without prices; cashier sees nothing
 - [x] Database tested on Postgres (PGlite): roles, landed cost, average cost, receive, reopen, upgrade path
-- Existing databases: run `supabase/upgrade_003_containers.sql` once, **before** deploying this frontend
+- Existing databases: run `supabase/upgrade_004_containers.sql` once, **before** deploying this frontend
 
 ### Still to do
 - [x] Container lots (Level 2, built 28 Oct 2026): what is left of each container and its profit, first in first out
   - Worked out from stock moves (no extra data): deleting bills, returns and reopening stay correct
   - Container page: "Left" per product + profit card (admin/manager); containers list: % left; product ledger: left per container
-  - Existing databases: run `supabase/upgrade_005_container_lots.sql` once (after 003 containers)
+  - Existing databases: run `supabase/upgrade_006_container_lots.sql` once (after 004 containers)
 - [x] Mixed containers: supplier per packing list line (blank = container's supplier / agent); CSV `supplier` column
-  - Existing databases: run `supabase/upgrade_006_item_supplier.sql` once
+  - Existing databases: run `supabase/upgrade_007_item_supplier.sql` once
 - [ ] Supplier ledger, payments (A-02, A-04)
 - [ ] Local purchase invoice (PI-01), purchase return **(client)**
 - [ ] Profit report, container report (R-07, R-10)
@@ -127,9 +127,12 @@ Legend: `[x]` done · `[ ]` pending · **(client)** waiting for client decision
 ## Before go-live
 - [ ] Data transfer from old MIS (products, customers, balances, stock) (M-01)
 - [ ] Set invoice number to continue after the old software (`setval`)
-- [ ] Run `supabase/upgrade_002_four_roles.sql` on the production database (once)
-- [ ] Run `supabase/upgrade_003_containers.sql` on the production database (once, after 002)
-- [ ] Run `supabase/upgrade_005_container_lots.sql` on the production database (once, after 003 containers)
-- [ ] Run `supabase/upgrade_006_item_supplier.sql` on the production database (once)
+- [ ] Run the upgrades on the production database, in number order, each once (see `supabase/README.md`):
+  - [ ] `upgrade_002_four_roles.sql`
+  - [ ] `upgrade_003_cheque_payment.sql`
+  - [ ] `upgrade_004_containers.sql`
+  - [ ] `upgrade_005_returns_against_invoice.sql`
+  - [ ] `upgrade_006_container_lots.sql`
+  - [ ] `upgrade_007_item_supplier.sql`
 - [ ] Deploy `admin-users` Edge Function (needed for the new roles)
 - [ ] Parallel run + staff training (M-03, M-04)
