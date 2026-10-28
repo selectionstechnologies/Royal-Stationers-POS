@@ -36,7 +36,7 @@ export default function About() {
       <section className="border-b border-line">
         <div className="site-wrap grid gap-10 py-16 md:py-20 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
           <SectionHead eyebrow="Our work" title="We keep the shelves of other shops full." />
-          <div className="grid gap-5 text-[17px] text-ink-2">
+          <div className="grid gap-5 text-[17px] text-ink-2" data-reveal="true">
             <p>
               Urdu Bazar is where Lahore's stationery trade buys its stock, and Royal Stationers is part of that trade. We bring in office and school
               stationery, including our own imports, and sell it on to the shops, schools and offices that serve the end customer.

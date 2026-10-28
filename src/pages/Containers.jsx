@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { CheckCircle2, Plus, Search, Ship } from 'lucide-react'
-import { listContainers } from '../lib/api'
+import { listContainerStock, listContainers, optional } from '../lib/api'
 import { CONTAINER_STATUSES, ON_THE_WAY, formatDate, num } from '../lib/format'
 import { matchesWords } from '../lib/stock'
 import { useAuth } from '../auth/AuthProvider'
@@ -29,13 +29,19 @@ export default function Containers() {
   const navigate = useNavigate()
   const location = useLocation()
   const [rows, setRows] = useState(null)
+  const [left, setLeft] = useState({}) // { [container_id]: { received, remaining } }
   const [error, setError] = useState('')
   const [notice] = useState(location.state?.notice ?? '')
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState('open')
 
   useEffect(() => {
-    listContainers().then(setRows).catch((e) => setError(e.message))
+    Promise.all([listContainers(), optional(listContainerStock())])
+      .then(([c, l]) => {
+        setRows(c)
+        setLeft(l)
+      })
+      .catch((e) => setError(e.message))
   }, [])
 
   const filtered = useMemo(() => {
@@ -106,6 +112,7 @@ export default function Containers() {
                 <th className="hide-sm">Arrival</th>
                 <th className="num">Cartons</th>
                 <th className="num hide-sm">CBM</th>
+                <th className="num">Left</th>
               </tr>
             </thead>
             <tbody>
@@ -117,7 +124,8 @@ export default function Containers() {
                       <div className="cell-stack">
                         <span className="strong mono">{c.container_no}</span>
                         <span className="text-muted">
-                          {c.supplier?.name ?? 'No supplier'} · {c.container_items.length} item{c.container_items.length === 1 ? '' : 's'}
+                          {c.supplier?.name ?? 'No supplier'}
+                          {mixedCount(c) > 1 && ` + ${mixedCount(c) - 1} more`} · {c.container_items.length} item{c.container_items.length === 1 ? '' : 's'}
                         </span>
                       </div>
                     </td>
@@ -130,6 +138,9 @@ export default function Containers() {
                     </td>
                     <td className="num strong">{num(t.cartons)}</td>
                     <td className="num text-secondary hide-sm">{num(t.cbm)}</td>
+                    <td className="num">
+                      <LeftPercent lot={left[c.id]} />
+                    </td>
                   </tr>
                 )
               })}
@@ -140,3 +151,13 @@ export default function Containers() {
     </>
   )
 }
+
+// Share of a received container still in stock, first in first out
+function LeftPercent({ lot }) {
+  if (!lot || lot.received <= 0) return <span className="text-muted">—</span>
+  if (lot.remaining <= 0) return <span className="text-muted">Sold out</span>
+  return <span className="strong">{num(Math.round((lot.remaining / lot.received) * 100))}%</span>
+}
+
+// Suppliers on a container: its own plus any named on packing list lines
+const mixedCount = (c) => new Set(c.container_items.map((i) => i.supplier_id || c.supplier_id || 'none')).size

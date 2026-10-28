@@ -56,7 +56,7 @@ export default function Home() {
       <section className="border-b border-line">
         <div className="site-wrap flex flex-col gap-4 py-7 md:flex-row md:items-center md:gap-10">
           <p className="shrink-0 text-[13px] font-medium text-ink-3">Brands on our shelves</p>
-          <ul className="flex flex-wrap items-center gap-x-10 gap-y-3 text-ink-2">
+          <ul className="flex flex-wrap items-center gap-x-10 gap-y-3 text-ink-2" data-reveal="true">
             {BRANDS.map((b) => (
               <li key={b} className={BRAND_STYLE[b]}>
                 {b}
@@ -87,7 +87,7 @@ export default function Home() {
 
       <section className="border-b border-line">
         <div className="site-wrap grid gap-12 py-16 md:py-20 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
-          <div className="self-start">
+          <div className="self-start" data-reveal="true">
             <p className="site-eyebrow">Why shops buy from us</p>
             <h2 className="site-h2 mt-3 text-ink">Built for resellers, not walk-in shoppers.</h2>
             <p className="mt-5 max-w-[32rem] text-ink-2">
@@ -100,7 +100,7 @@ export default function Home() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {WHY.map((w) => (
-              <LinkCard key={w.title} {...w} />
+              <LinkCard key={w.title} {...w} reveal />
             ))}
           </div>
         </div>
@@ -111,7 +111,7 @@ export default function Home() {
           <SectionHead eyebrow="How to order" title="Send your list. We handle the rest." />
           <ol className="mt-12 grid gap-4 md:grid-cols-3">
             {STEPS.map(({ icon: Icon, title, text }, i) => (
-              <li key={title} className="rounded-lg border border-line bg-surface p-6 shadow-[var(--shadow-sm)]">
+              <li key={title} className="rounded-lg border border-line bg-surface p-6 shadow-[var(--shadow-sm)]" data-reveal="true">
                 <div className="flex items-center justify-between">
                   <span className="grid h-11 w-11 place-items-center rounded-md bg-brand text-brand-ink">
                     <Icon size={22} />
@@ -128,7 +128,7 @@ export default function Home() {
 
       <section>
         <div className="site-wrap grid items-start gap-10 py-16 md:py-20 lg:grid-cols-2 lg:gap-16">
-          <div className="min-w-0">
+          <div className="min-w-0" data-reveal="true">
             <p className="site-eyebrow">Visit the shop</p>
             <h2 className="site-h2 mt-3 text-ink">First floor, Bashir Center, Urdu Bazar.</h2>
             <div className="mt-8">
@@ -150,7 +150,7 @@ export default function Home() {
 
 export function VisitCard() {
   return (
-    <div className="min-w-0 overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow)]">
+    <div className="min-w-0 overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow)]" data-reveal="true">
       <MapEmbed className="aspect-[16/10] bg-surface-2" />
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
         <div className="min-w-0">

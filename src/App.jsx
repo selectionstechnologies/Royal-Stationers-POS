@@ -28,6 +28,7 @@ import Containers from './pages/Containers'
 import ContainerForm from './pages/ContainerForm'
 import ContainerReceive from './pages/ContainerReceive'
 import Settings from './pages/Settings'
+import Profile from './pages/Profile'
 
 const only = (permission, el) => <RequireAuth permission={permission}>{el}</RequireAuth>
 
@@ -98,6 +99,7 @@ export default function App() {
           <Route path="suppliers" element={only('containers.manage', <Suppliers />)} />
           <Route path="users" element={only('users', <Users />)} />
           <Route path="settings" element={only('settings', <Settings />)} />
+          <Route path="profile" element={<Profile />} />
           <Route path="*" element={<Navigate to="/app" replace />} />
         </Route>
       </Route>

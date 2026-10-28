@@ -16,7 +16,8 @@ import {
 import { DELIVERY_LABELS, PAYMENT_LABELS, TXN_LABELS, computeInvoice, formatDate, money, num, qtyText, splitQty, toQty, today } from '../lib/format'
 import { bestLocation, stockIndex } from '../lib/stock'
 import { customerLabel } from '../lib/customerFields'
-import { EmptyState, ErrorBanner, Field, Loading } from '../components/ui'
+import { EmptyState, ErrorBanner, Field, Loading, RequiredProxy } from '../components/ui'
+import { validatePage } from '../lib/formValidation'
 import { CustomerSearch, ProductSearch } from '../components/Pickers'
 import { CustomerModal } from '../components/RecordModals'
 import ChequeModal from '../components/ChequeModal'
@@ -262,6 +263,12 @@ export default function InvoiceForm() {
   const canSave = customer && billLines.length > 0 && !blocking && discountValid && totals.freight >= 0 && receivedNum >= 0 && date && !chequeMissing && !needsInvoice
 
   async function handleSave() {
+    if (!validatePage()) return
+    if (!canSave) {
+      setError('Some items need attention: they are marked in red.')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -308,7 +315,7 @@ export default function InvoiceForm() {
 
       <div className="card invoice-head">
         <div className="invoice-head-customer">
-          <Field label="Customer">
+          <Field label="Customer" required>
             {customer ? (
               <div className="picked">
                 <UserRound size={16} />
@@ -334,11 +341,12 @@ export default function InvoiceForm() {
                 </button>
               </div>
             )}
+            <RequiredProxy value={customer} message="Choose the customer for this bill." />
           </Field>
         </div>
         <div className="invoice-head-date">
           <Field label="Date">
-            <DateInput value={date} onChange={setDate} />
+            <DateInput value={date} onChange={setDate} required />
           </Field>
         </div>
         <Field label="Type">
@@ -355,6 +363,7 @@ export default function InvoiceForm() {
             <Field label="Against invoice">
               <select
                 className={`input ${needsInvoice && customer ? 'warn' : ''}`}
+                required
                 value={returnOf}
                 disabled={!customer}
                 onChange={(e) => chooseReturnOf(e.target.value)}
@@ -384,10 +393,11 @@ export default function InvoiceForm() {
           </select>
         </Field>
         {paymentMode === 'cheque' && (
-          <Field label="Cheque photo">
+          <Field label="Cheque photo" required>
             <button type="button" className="btn btn-secondary cheque-btn" onClick={() => setChequeOpen(true)} title={chequeFile?.name}>
               <Camera size={16} /> <span>{chequeFile ? chequeFile.name : 'Add photo'}</span>
             </button>
+            <RequiredProxy value={chequeFile} message="Add a photo of the cheque." />
           </Field>
         )}
         <Field label="Delivery">
@@ -429,7 +439,10 @@ export default function InvoiceForm() {
                 <p className="text-secondary">Search, Enter, then cartons → loose → rate → Enter.</p>
               </div>
             </div>
-            <ProductSearch ref={searchRef} products={products} stock={stock} onPick={pickProduct} />
+            <div className="field">
+              <ProductSearch ref={searchRef} products={products} stock={stock} onPick={pickProduct} />
+              <RequiredProxy value={lines.length} message="Add at least one item to the bill." />
+            </div>
 
             {entry && (
               <div className="entry-panel">
@@ -565,10 +578,34 @@ export default function InvoiceForm() {
                           />
                         </td>
                         <td className="num" data-label="Loose">
-                          <input className="input input-num input-sm" inputMode="decimal" value={l.loose} onChange={(e) => updateItem(l.key, 'loose', e.target.value)} />
+                          <input
+                            className="input input-num input-sm"
+                            inputMode="decimal"
+                            aria-label="Loose"
+                            value={l.loose}
+                            onChange={(e) => updateItem(l.key, 'loose', e.target.value)}
+                            ref={(el) =>
+                              el?.setCustomValidity(l.qty <= 0 ? 'Enter a quantity.' : l.short ? `Only ${num(l.avail)} ${l.unit} in this store.` : '')
+                            }
+                          />
                         </td>
                         <td className="num" data-label="Rate">
-                          <input className="input input-num input-sm" inputMode="decimal" value={l.unit_price} onChange={(e) => updateItem(l.key, 'unit_price', e.target.value)} />
+                          <input
+                            className="input input-num input-sm"
+                            inputMode="decimal"
+                            aria-label="Rate"
+                            value={l.unit_price}
+                            onChange={(e) => updateItem(l.key, 'unit_price', e.target.value)}
+                            ref={(el) =>
+                              el?.setCustomValidity(
+                                l.unit_price === '' || n(l.unit_price) < 0
+                                  ? 'Enter a rate.'
+                                  : l.belowMin && !canOverride
+                                    ? `Below the minimum price of ${money(l.min_price)}.`
+                                    : '',
+                              )
+                            }
+                          />
                         </td>
                         <td className="num strong line-total" data-label="Amount">{money(l.amount)}</td>
                         <td className="row-actions">
@@ -642,11 +679,27 @@ export default function InvoiceForm() {
           </div>
           <div className="sum-row sum-input">
             <span>Discount</span>
-            <input className={`input input-num input-sm ${discountValid ? '' : 'invalid'}`} inputMode="decimal" placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+            <input
+              className="input input-num input-sm"
+              inputMode="decimal"
+              aria-label="Discount"
+              placeholder="0"
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value)}
+              ref={(el) => el?.setCustomValidity(discountValid ? '' : 'Discount must be between 0 and the bill amount.')}
+            />
           </div>
           <div className="sum-row sum-input">
             <span>Freight</span>
-            <input className="input input-num input-sm" inputMode="decimal" placeholder="0" value={freight} onChange={(e) => setFreight(e.target.value)} />
+            <input
+              className="input input-num input-sm"
+              inputMode="decimal"
+              aria-label="Freight"
+              placeholder="0"
+              value={freight}
+              onChange={(e) => setFreight(e.target.value)}
+              ref={(el) => el?.setCustomValidity(totals.freight >= 0 ? '' : 'Freight cannot be negative.')}
+            />
           </div>
           <div className="sum-row sum-total">
             <span>Net total</span>
@@ -658,11 +711,13 @@ export default function InvoiceForm() {
               className="input input-num input-sm"
               inputMode="decimal"
               placeholder="0"
+              aria-label={isSale ? 'Received now' : 'Refunded now'}
               value={received}
               onChange={(e) => {
                 setReceivedTouched(true)
                 setReceived(e.target.value)
               }}
+              ref={(el) => el?.setCustomValidity(receivedNum >= 0 ? '' : 'Amount cannot be negative.')}
             />
           </div>
           {customer && (
@@ -678,7 +733,7 @@ export default function InvoiceForm() {
           <Field label="Remarks">
             <textarea className="input" rows={2} placeholder="Optional" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
-          <button className="btn btn-primary btn-block btn-lg summary-save" disabled={!canSave || saving} onClick={handleSave}>
+          <button className="btn btn-primary btn-block btn-lg summary-save" disabled={saving} onClick={handleSave}>
             {saving ? 'Saving…' : isSale ? 'Save invoice' : 'Save return'}
           </button>
           {!customer && <p className="text-muted summary-hint">Choose a customer to save.</p>}
@@ -779,6 +834,8 @@ function ReturnLines({ lines, locations, invoiceNo, onChange }) {
                         inputMode="decimal"
                         placeholder="0"
                         disabled={done}
+                        aria-label="Loose"
+                        ref={(el) => el?.setCustomValidity(l.over ? `Only ${qtyText(l.left, l.unit, l.carton_qty)} can come back.` : '')}
                         value={l.loose}
                         onChange={(e) => onChange(l.key, 'loose', e.target.value)}
                       />

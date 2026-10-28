@@ -66,7 +66,7 @@ export default function Wholesale() {
           <SectionHead eyebrow="How it works" title="Rates, delivery and accounts." />
           <div className="mt-12 grid gap-4 lg:grid-cols-3">
             {TERMS.map(({ id, icon: Icon, title, text }) => (
-              <article key={title} id={id} className="scroll-mt-24 rounded-lg border border-line bg-surface p-6 shadow-[var(--shadow-sm)]">
+              <article key={title} id={id} data-reveal="true" className="scroll-mt-24 rounded-lg border border-line bg-surface p-6 shadow-[var(--shadow-sm)]">
                 <span className="icon-tile">
                   <Icon size={22} />
                 </span>
@@ -96,7 +96,7 @@ export default function Wholesale() {
           </div>
           <div className="divide-y divide-line border-y border-line">
             {FAQ.map(({ q, a }) => (
-              <details key={q} className="site-faq group py-5">
+              <details key={q} className="site-faq group py-5" data-reveal="true">
                 <summary className="flex items-center justify-between gap-4 text-[17px] font-semibold text-ink">
                   {q}
                   <ChevronDown size={20} className="faq-chevron shrink-0 text-ink-3 transition-transform" />
@@ -122,7 +122,7 @@ function RateCard() {
     { item: 'Stapler pins #10', ctn: '1 ctn', loose: '20 box' },
   ]
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-lg)]">
+    <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-lg)]" data-reveal="true">
       <div className="flex items-center justify-between border-b border-line px-5 py-4">
         <div className="flex items-center gap-3">
           <span className="icon-tile h-10 w-10">

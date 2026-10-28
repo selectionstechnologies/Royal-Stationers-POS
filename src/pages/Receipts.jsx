@@ -94,7 +94,7 @@ export default function Receipts() {
                 <th>Date</th>
                 <th>Customer</th>
                 <th className="hide-sm">Method</th>
-                <th className="hide-sm">Reference / note</th>
+                <th className="hide-sm cell-fill">Reference / note</th>
                 <th className="hide-sm">By</th>
                 <th className="num">Amount</th>
                 {canDelete && <th />}
@@ -111,14 +111,16 @@ export default function Receipts() {
                     </Link>
                   </td>
                   <td className="hide-sm">{METHOD_LABELS[r.method]}</td>
-                  <td className="text-secondary truncate hide-sm">
-                    {[r.reference, r.note].filter(Boolean).join(' · ') || '—'}
-                    {r.invoices && (
-                      <Link to={`/app/invoices/${r.invoice_id}`} className="link">
-                        {' '}
-                        (Inv #{r.invoices.invoice_no})
-                      </Link>
-                    )}
+                  <td className="text-secondary hide-sm cell-fill">
+                    <span className="cell-truncate" title={[r.reference, r.note].filter(Boolean).join(' · ') || undefined}>
+                      {[r.reference, r.note].filter(Boolean).join(' · ') || '—'}
+                      {r.invoices && (
+                        <Link to={`/app/invoices/${r.invoice_id}`} className="link">
+                          {' '}
+                          (Inv #{r.invoices.invoice_no})
+                        </Link>
+                      )}
+                    </span>
                   </td>
                   <td className="text-secondary hide-sm">{r.creator?.name ?? '—'}</td>
                   <td className={`num strong ${Number(r.amount) < 0 ? 'text-critical' : ''}`}>{money(r.amount)}</td>

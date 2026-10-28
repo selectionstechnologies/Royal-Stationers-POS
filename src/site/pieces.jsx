@@ -86,10 +86,10 @@ export function WhatsAppButton({ text, children = 'Ask on WhatsApp', className =
 }
 
 // Internal route, in-page anchor, or outside link: the card picks the right element
-function CardLink({ to, href, onClick, className, children }) {
+function CardLink({ to, href, onClick, className, children, ...rest }) {
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={className}>
+      <button type="button" onClick={onClick} className={className} {...rest}>
         {children}
       </button>
     )
@@ -97,21 +97,22 @@ function CardLink({ to, href, onClick, className, children }) {
   if (href) {
     const external = /^https?:/.test(href)
     return (
-      <a href={href} className={className} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+      <a href={href} className={className} {...rest} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
         {children}
       </a>
     )
   }
   return (
-    <Link to={to} className={className}>
+    <Link to={to} className={className} {...rest}>
       {children}
     </Link>
   )
 }
 
-export function LinkCard({ icon: Icon, title, text, to, href, onClick }) {
+// `reveal`: fade up on scroll (used below the hero; hero cards are visible straight away)
+export function LinkCard({ icon: Icon, title, text, to, href, onClick, reveal }) {
   return (
-    <CardLink to={to} href={href} onClick={onClick} className="site-card group">
+    <CardLink to={to} href={href} onClick={onClick} className="site-card group" data-reveal={reveal ? 'true' : undefined}>
       <div className="flex items-start justify-between gap-3">
         <span className="icon-tile">
           <Icon size={22} />
@@ -154,7 +155,7 @@ export function PageHero({ eyebrow, lines, lead, actions, cards }) {
 
 export function SectionHead({ eyebrow, title, text, action }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-6 self-start">
+    <div className="flex flex-wrap items-end justify-between gap-6 self-start" data-reveal="true">
       <div className="max-w-[40rem]">
         <p className="site-eyebrow">{eyebrow}</p>
         <h2 className="site-h2 mt-3 text-ink">{title}</h2>
@@ -171,7 +172,7 @@ export function CategoryGrid({ limit }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {list.map((c) => (
-        <Link key={c.slug} to={`/products?d=${c.slug}`} className="site-card group">
+        <Link key={c.slug} to={`/products?d=${c.slug}`} className="site-card group" data-reveal="true">
           <div className="site-card-media">
             <img src={c.image} alt={c.name} loading="lazy" width="960" height="720" />
           </div>
@@ -238,7 +239,7 @@ export function MapEmbed({ className = '' }) {
 export function CtaBand({ title = 'Opening a shop or restocking for the season?', text = 'Send us your list and we reply with rates and stock the same day.' }) {
   return (
     <section className="bg-night">
-      <div className="site-wrap flex flex-col gap-6 py-14 md:flex-row md:items-center md:gap-10 md:py-16">
+      <div className="site-wrap flex flex-col gap-6 py-14 md:flex-row md:items-center md:gap-10 md:py-16" data-reveal="true">
         <div className="max-w-[40rem]">
           <h2 className="font-serif text-[28px] font-semibold leading-[1.2] text-night-strong md:text-[34px]">{title}</h2>
           <p className="mt-3 text-night-text">{text}</p>

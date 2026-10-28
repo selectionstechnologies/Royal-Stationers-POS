@@ -225,6 +225,13 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; }
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 8v4M12 16h.01'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 @keyframes field-error-in { from { opacity: 0; transform: translateY(-2px); } }
+/* Number fields (src/lib/numericInput.js): a refused keystroke flashes the field and shows a small tip under it */
+.input.input-reject, input.input-reject { border-color: var(--critical); box-shadow: 0 0 0 3px var(--critical-ring); }
+.num-tip {
+  position: fixed; z-index: 100; padding: 6px 10px; border-radius: var(--radius-sm);
+  background: var(--text); color: var(--surface); font-size: 12px; font-weight: 500; white-space: nowrap;
+  box-shadow: var(--shadow-lg); pointer-events: none; animation: field-error-in 0.12s ease;
+}
 @media (prefers-reduced-motion: reduce) { .field-error { animation: none; } }
 .input-locked { display: flex; align-items: center; justify-content: space-between; background: var(--surface-2); color: var(--text); font-weight: 600; cursor: default; }
 .input-num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -251,6 +258,13 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; }
 .row-dim td:last-child { opacity: 1; }
 .you { margin-left: 6px; padding: 1px 6px; border-radius: 5px; background: var(--surface-3); color: var(--text-secondary); font-size: 11px; font-weight: 600; }
 .row-actions { display: flex; justify-content: flex-end; gap: 2px; color: var(--text-secondary); }
+/* On a table cell, flex would pull it out of the row (off-centre, cut borders); keep it a real cell */
+td.row-actions { display: table-cell; text-align: right; white-space: nowrap; vertical-align: middle; }
+td.row-actions > * + * { margin-left: 2px; }
+/* An icon sitting alone in a cell (expand chevron) centres on the row instead of the text baseline */
+.table td > svg.lucide:only-child { display: block; }
+/* Stock entries: a transfer shows "from" and "→ to" on two lines; store names never break mid-name */
+.store-cell { display: flex; flex-direction: column; white-space: nowrap; line-height: 1.4; }
 .icon-btn:disabled { opacity: 0.35; cursor: not-allowed; background: transparent; }
 .icon-btn.warn:hover:not(:disabled) { color: var(--warning); background: var(--warning-bg); }
 .icon-btn.ok { color: var(--good); }
@@ -371,6 +385,13 @@ select.input {
   box-shadow: var(--shadow); padding: 22px;
 }
 .card-flush { padding: 0; overflow: hidden; }
+/* A table wider than its card scrolls sideways inside the card instead of being cut off at the edge */
+.card-flush:has(> .table, > table) { overflow-x: auto; }
+/* Table cells ignore max-width, so long text truncates through an inner wrapper */
+.cell-truncate { display: block; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The one stretchy column: takes whatever width is left and truncates, so the row always fits the card */
+td.cell-fill, th.cell-fill { width: 100%; max-width: 0; }
+td.cell-fill .cell-truncate { max-width: none; }
 .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 20px 22px 14px; }
 .card-head p { font-size: 13px; margin-top: 2px; }
 .card-head-tight { padding: 0 0 18px; }
@@ -916,23 +937,18 @@ select.input-sm { padding-right: 30px; background-position: right 8px center; }
 .container-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .plain-fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
 .plain-fieldset:disabled .input { background: var(--surface-2); color: var(--text); }
-.status-dates { margin-top: 16px; }
-.status-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
-.status-steps li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--good-bg); }
 .table-scroll { overflow-x: auto; }
-.packing-table { min-width: 860px; }
+.packing-list-table { min-width: 860px; }
 .row-warn td { background: var(--warning-bg); }
 .container-costs { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr); gap: 16px; align-items: start; margin-top: 16px; }
-.expense-list { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
-.expense-list li { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 8px; align-items: center; }
-.expense-chips { margin-top: 12px; }
+.expense-boxes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .cost-total { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
 .form-footer { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+.more-options { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 13px; }
 .split-btn { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 12px; }
 .btn.disabled { opacity: 0.5; pointer-events: none; }
 @media (max-width: 900px) {
   .container-costs { grid-template-columns: minmax(0, 1fr); }
-  .status-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ============ Public website ============ */
@@ -1015,8 +1031,16 @@ a.site-card:hover, button.site-card:hover { border-color: var(--hover-border); b
 .site-chip:hover { color: var(--text); border-color: var(--text-muted); }
 .site-chip[aria-pressed='true'] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
 
+/* Scroll reveal (src/site/useScrollReveal.js): hidden until scrolled into view, then fades up once */
+.site [data-reveal='true'] { opacity: 0; transform: translateY(28px); }
+.site [data-reveal='in'] {
+  opacity: 1; transform: none;
+  transition: opacity 0.6s ease var(--reveal-delay, 0ms), transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) var(--reveal-delay, 0ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tw-caret { animation: none; }
+  .site [data-reveal='true'] { opacity: 1; transform: none; }
   .site-card, .site-card-media img, .site-card .card-arrow { transition: none; }
   a.site-card:hover, button.site-card:hover, .site-card:hover .site-card-media img { transform: none; }
 }
@@ -1072,3 +1096,47 @@ a.site-card:hover, button.site-card:hover { border-color: var(--hover-border); b
   .summary-bar .summary-block:first-child { border-top: 0; }
 }
 }
+
+/* Profile and passwords */
+.sidebar-profile { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; color: inherit; text-decoration: none; border-radius: 8px; }
+.sidebar-profile:hover .user-email { text-decoration: underline; }
+a.avatar { text-decoration: none; }
+.avatar-lg { width: 64px; height: 64px; font-size: 22px; }
+.profile-head { display: flex; align-items: center; gap: 18px; }
+.profile-head h2 { margin: 0; }
+.profile-access-head { margin-top: 24px; }
+.access-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.access-list li { display: flex; align-items: center; gap: 10px; }
+.text-good { color: var(--good); }
+.generate-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.credentials { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+.credentials dl { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; align-items: center; margin: 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.credentials dt { color: var(--text-muted); font-size: 13px; }
+.credentials dd { display: flex; align-items: center; gap: 12px; margin: 0; flex-wrap: wrap; }
+.credentials > .btn { align-self: flex-start; }
+.user-menu { position: relative; }
+.avatar-btn { border: 0; padding: 0; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: box-shadow 0.15s; }
+.avatar-btn:hover, .avatar-btn[aria-expanded='true'] { box-shadow: 0 0 0 3px var(--primary-ring); }
+.user-menu-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; min-width: 220px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow-lg);
+}
+.user-menu-head { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px 10px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+.user-menu-head .text-muted { font-size: 12px; }
+.user-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px;
+  background: none; font: inherit; color: var(--text); text-align: left; text-decoration: none; cursor: pointer;
+}
+.user-menu-item:hover { background: var(--surface-2); }
+
+/* Required fields: red * after the label. Inputs with `required` get it on their own; other controls use <Field required>. */
+.field:has(:required) > .field-label:not(:has(.req))::after,
+.field-required > .field-label:not(:has(.req))::after { content: ' *'; color: var(--critical); font-weight: 600; }
+.field { position: relative; }
+.validation-proxy { position: absolute; bottom: 0; left: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+/* Messages under the small amount boxes in the bill summary and in table rows */
+.sum-input { flex-wrap: wrap; }
+.sum-input .field-error { flex-basis: 100%; justify-content: flex-end; text-align: right; }
+td .field-error { justify-content: flex-end; text-align: right; font-size: 12px; font-weight: 500; white-space: normal; }
+.dropzone-invalid { border-color: var(--critical); background: var(--critical-bg); }
+.line-supplier select.input { min-width: 150px; max-width: 220px; }

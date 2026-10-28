@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { deleteCustomer, deleteProduct, deleteSupplier, listLookups, saveCustomer, saveProduct, saveSupplier } from '../lib/api'
 import { CURRENCIES } from '../lib/format'
@@ -15,10 +15,9 @@ function RecordModal({ title, initial, fields, save, remove, validate, suggestio
   const [form, setForm] = useState(initial)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [touched, setTouched] = useState(false)
+  const formRef = useRef(null)
   const isEdit = Boolean(initial.id)
 
-  const missing = fields.filter((f) => f.required && !filled(form[f.key]))
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   async function run(fn) {
@@ -32,16 +31,14 @@ function RecordModal({ title, initial, fields, save, remove, validate, suggestio
     }
   }
 
+  // Required fields are checked by the browser (see lib/formValidation); this runs once they are filled
   const handleSave = (e) => {
     e.preventDefault()
-    setTouched(true)
-    if (missing.length) {
-      setError(`Please fill in: ${missing.map((f) => f.label).join(', ')}`)
-      return
-    }
-    const problem = validate?.(form)
+    const blank = fields.find((f) => f.required && !filled(form[f.key]))
+    const problem = blank ? `${blank.label} cannot be only spaces.` : validate?.(form)
     if (problem) {
       setError(problem)
+      formRef.current?.closest('.modal-body')?.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
     run(async () => onSaved(await save(form)))
@@ -77,12 +74,11 @@ function RecordModal({ title, initial, fields, save, remove, validate, suggestio
       }
     >
       <ErrorBanner message={error} />
-      <form id="record-form" className={`form-grid ${wide ? 'form-grid-3' : ''}`} onSubmit={handleSave} noValidate>
+      <form ref={formRef} id="record-form" className={`form-grid ${wide ? 'form-grid-3' : ''}`} onSubmit={handleSave}>
         {fields.map((f) => {
-          const invalid = touched && f.required && !filled(form[f.key])
           const listId = f.suggest ? `suggest-${f.key}` : undefined
           const props = {
-            className: `input ${invalid ? 'invalid' : ''}`,
+            className: 'input',
             required: f.required,
             autoFocus: f.autoFocus,
             placeholder: f.placeholder,
@@ -95,10 +91,9 @@ function RecordModal({ title, initial, fields, save, remove, validate, suggestio
                 label={
                   <>
                     {f.label}
-                    {f.required ? <span className="req"> *</span> : <span className="optional"> (optional)</span>}
+                    {!f.required && <span className="optional"> (optional)</span>}
                   </>
                 }
-                hint={invalid ? 'Required' : null}
               >
                 {f.textarea ? (
                   <textarea rows={2} {...props} />
@@ -116,6 +111,7 @@ function RecordModal({ title, initial, fields, save, remove, validate, suggestio
                     <input
                       type={f.type === 'number' ? 'text' : (f.type ?? 'text')}
                       inputMode={f.type === 'number' ? 'decimal' : undefined}
+                      data-signed={f.signed ? 'true' : undefined}
                       list={listId}
                       autoComplete={f.suggest ? 'off' : undefined}
                       {...props}
@@ -129,7 +125,7 @@ function RecordModal({ title, initial, fields, save, remove, validate, suggestio
                     )}
                   </>
                 )}
-                {f.hint && !invalid && <span className="field-note">{f.hint}</span>}
+                {f.hint && <span className="field-note">{f.hint}</span>}
               </Field>
             </div>
           )

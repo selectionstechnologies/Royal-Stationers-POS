@@ -3,7 +3,7 @@ import { UserRound, X } from 'lucide-react'
 import { createReceipt } from '../lib/api'
 import { MAX_AMOUNT, METHOD_LABELS, cleanAmount, money, today } from '../lib/format'
 import { customerLabel } from '../lib/customerFields'
-import { ErrorBanner, Field, Modal } from './ui'
+import { ErrorBanner, Field, Modal, RequiredProxy } from './ui'
 import { CustomerSearch } from './Pickers'
 import DateInput from './DateInput'
 
@@ -19,8 +19,8 @@ export default function ReceiptModal({ customer: fixed, customers = [], balances
   const [error, setError] = useState('')
 
   const value = Number(amount)
-  const tooBig = value > MAX_AMOUNT
-  const valid = customer && Number.isFinite(value) && value > 0 && !tooBig && date
+  const amountError = amount === '' ? '' : !(value > 0) ? 'Amount must be more than 0.' : value > MAX_AMOUNT ? `Amount cannot be more than ${money(MAX_AMOUNT)}.` : ''
+  const valid = customer && value > 0 && !amountError && date
 
   async function handleSave(e) {
     e.preventDefault()
@@ -46,16 +46,16 @@ export default function ReceiptModal({ customer: fixed, customers = [], balances
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button type="submit" form="receipt-form" className="btn btn-primary" disabled={!valid || busy}>
+          <button type="submit" form="receipt-form" className="btn btn-primary" disabled={busy}>
             {busy ? 'Saving…' : `Save receipt${valid ? ` · ${money(value)}` : ''}`}
           </button>
         </>
       }
     >
       <ErrorBanner message={error} />
-      <form id="receipt-form" className="form-grid" onSubmit={handleSave} noValidate>
+      <form id="receipt-form" className="form-grid" onSubmit={handleSave}>
         <div className="span-all">
-          <Field label="Customer">
+          <Field label="Customer" required>
             {customer ? (
               <div className="picked">
                 <UserRound size={16} />
@@ -70,14 +70,17 @@ export default function ReceiptModal({ customer: fixed, customers = [], balances
             ) : (
               <CustomerSearch customers={customers} balances={balances} onPick={setCustomer} autoFocus />
             )}
+            <RequiredProxy value={customer} message="Choose the customer who is paying." />
           </Field>
         </div>
-        <Field label="Amount (Rs)" hint={tooBig ? `Cannot be more than ${money(MAX_AMOUNT)}` : null}>
+        <Field label="Amount (Rs)">
           <input
-            className={`input input-num ${tooBig ? 'invalid' : ''}`}
+            className="input input-num"
             inputMode="decimal"
             placeholder="0.00"
             maxLength={13}
+            required
+            ref={(el) => el?.setCustomValidity(amountError)}
             autoFocus={Boolean(fixed)}
             value={amount}
             onChange={(e) => setAmount(cleanAmount(e.target.value))}

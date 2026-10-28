@@ -113,7 +113,7 @@ export default function InvoiceList() {
         actions={
           <>
             <form className="go-to" onSubmit={goTo}>
-              <input className="input" inputMode="numeric" placeholder="Invoice #" value={goNo} onChange={(e) => setGoNo(e.target.value)} aria-label="Open invoice number" />
+              <input className="input" inputMode="numeric" data-numeric="int" placeholder="Invoice #" value={goNo} onChange={(e) => setGoNo(e.target.value)} aria-label="Open invoice number" />
               <button className="btn btn-secondary">Open</button>
             </form>
             <Link to="/app/invoices/new" className="btn btn-primary">

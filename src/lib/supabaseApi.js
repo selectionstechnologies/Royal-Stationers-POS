@@ -411,14 +411,14 @@ export async function listContainers() {
   return selectAll(() =>
     supabase
       .from('containers')
-      .select('*, supplier:suppliers(name), container_items(cartons, qty, cbm, weight)')
+      .select('*, supplier:suppliers(name), container_items(cartons, qty, cbm, weight, supplier_id)')
       .order('order_date', { ascending: false })
       .order('id'),
   )
 }
 
 export async function getContainer(id, { withCosts = false } = {}) {
-  const items = withCosts ? 'container_items(*, container_item_prices(*))' : 'container_items(*)'
+  const items = withCosts ? 'container_items(*, supplier:suppliers(name), container_item_prices(*))' : 'container_items(*, supplier:suppliers(name))'
   const doc = unwrap(
     await supabase
       .from('containers')
@@ -453,6 +453,44 @@ export async function deleteContainer(id) {
   return unwrap(await supabase.from('containers').delete().eq('id', id))
 }
 
+// Container lots need upgrade_005_container_lots.sql. They are extra information on pages that
+// work without them, so callers use `optional()` to show the page even when that upgrade is missing.
+export const optional = (promise, fallback = {}) =>
+  promise.catch((e) => {
+    console.warn('Optional data not available:', e.message)
+    return fallback
+  })
+
+// What is left of a container, first in first out: { [product_id]: { received, remaining } }
+export async function getContainerStock(containerId) {
+  const rows = unwrap(await supabase.from('container_stock').select('product_id, received, remaining').eq('container_id', containerId))
+  return Object.fromEntries(rows.map((r) => [r.product_id, { received: Number(r.received), remaining: Number(r.remaining) }]))
+}
+
+// Every received container: { [container_id]: { received, remaining } } across its products
+export async function listContainerStock() {
+  const rows = await selectAll(() => supabase.from('container_stock').select('container_id, product_id, received, remaining').order('container_id').order('product_id'))
+  const out = {}
+  for (const r of rows) {
+    const t = (out[r.container_id] ??= { received: 0, remaining: 0 })
+    t.received += Number(r.received)
+    t.remaining += Number(r.remaining)
+  }
+  return out
+}
+
+// Sales matched to a container's goods (needs the 'costs' permission): { [product_id]: { sold, written_off, revenue, cost, profit } }
+export async function getContainerProfit(containerId) {
+  const rows = unwrap(await supabase.rpc('container_profit', { p_container_id: containerId }))
+  return Object.fromEntries(rows.map((r) => [r.product_id, Object.fromEntries(Object.entries(r).map(([k, v]) => [k, k === 'product_id' ? v : Number(v)]))]))
+}
+
+// { [container_id]: remaining } of one product
+export async function getProductLots(productId) {
+  const rows = unwrap(await supabase.from('container_stock').select('container_id, remaining').eq('product_id', productId))
+  return Object.fromEntries(rows.map((r) => [r.container_id, Number(r.remaining)]))
+}
+
 // { [product_id]: qty } of goods in containers that are shipped, at port or clearing
 export async function listOnTheWay() {
   const rows = await selectAll(() => supabase.from('product_on_the_way').select('product_id, qty').order('product_id'))
@@ -464,7 +502,7 @@ export async function getProductContainers(productId) {
   const rows = unwrap(
     await supabase
       .from('container_items')
-      .select('qty, received_qty, containers(id, container_no, status, eta, order_date, received_date)')
+      .select('qty, received_qty, supplier:suppliers(name), containers(id, container_no, status, eta, order_date, received_date, supplier:suppliers(name))')
       .eq('product_id', productId),
   )
   return rows.filter((r) => r.containers).sort((a, b) => (b.containers.order_date ?? '').localeCompare(a.containers.order_date ?? ''))
@@ -482,7 +520,7 @@ export async function getDashboard() {
 // because creating users and setting passwords needs the service role key (server only).
 
 export async function getProfile(userId) {
-  return unwrap(await supabase.from('profiles').select('name, role, active').eq('id', userId).maybeSingle())
+  return unwrap(await supabase.from('profiles').select('name, email, role, active, created_at').eq('id', userId).maybeSingle())
 }
 
 export async function listUsers() {

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, CheckCircle2, LogOut, Pencil, Plus, X } from 'lucide-react'
 import { getDefaultCompany, listLocations, saveCompany, saveLocation } from '../lib/api'
+import { validateWithin } from '../lib/formValidation'
 import { ROLE_LABELS, initials } from '../lib/format'
 import { useAuth } from '../auth/AuthProvider'
 import { ErrorBanner, Field, Loading, PageHeader } from '../components/ui'
@@ -80,7 +81,16 @@ export default function Settings() {
                   </Field>
                 </div>
                 <Field label="Margin for suggested price (%)">
-                  <input className="input input-num" inputMode="decimal" value={form.default_margin ?? 0} onChange={set('default_margin')} />
+                  <input
+                    className="input input-num"
+                    inputMode="decimal"
+                    value={form.default_margin ?? 0}
+                    onChange={set('default_margin')}
+                    ref={(el) => {
+                      const m = Number(form.default_margin ?? 0)
+                      el?.setCustomValidity(Number.isFinite(m) && m >= 0 && m <= 1000 ? '' : 'Margin must be a number from 0 to 1000.')
+                    }}
+                  />
                   <span className="field-note">Containers suggest a sale price of landed cost + this margin.</span>
                 </Field>
                 <div className="span-all">
@@ -102,7 +112,7 @@ export default function Settings() {
                     <CheckCircle2 size={16} /> Saved
                   </span>
                 )}
-                <button className="btn btn-primary" disabled={busy || !form.name?.trim()}>
+                <button className="btn btn-primary" disabled={busy}>
                   {busy ? 'Saving…' : 'Save changes'}
                 </button>
               </div>
@@ -143,6 +153,7 @@ export default function Settings() {
 
 // Store locations: add, rename, reorder, hide. Stores with stock history are hidden, not deleted.
 function Locations() {
+  const editRef = useRef(null)
   const [rows, setRows] = useState(null)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(null) // { id?, name, sort_order, active }
@@ -152,7 +163,10 @@ function Locations() {
   }, [])
 
   async function save(row) {
-    if (!row.name.trim()) return
+    if (!row.name.trim()) {
+      validateWithin(editRef.current)
+      return
+    }
     setError('')
     try {
       const saved = await saveLocation(row)
@@ -185,9 +199,11 @@ function Locations() {
         <ul className="location-list">
           {[...rows, ...(editing && !editing.id ? [editing] : [])].map((l) =>
             editing && (editing.id ? editing.id === l.id : l === editing) ? (
-              <li key={l.id ?? 'new'} className="location-edit">
+              <li key={l.id ?? 'new'} className="location-edit" ref={editRef}>
                 <input
                   className="input input-sm"
+                  aria-label="Store name"
+                  required
                   autoFocus
                   value={editing.name}
                   placeholder="Store name"

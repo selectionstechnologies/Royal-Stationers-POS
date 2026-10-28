@@ -1,27 +1,59 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, FileSpreadsheet, PackageCheck, Plus, Trash2, Undo2 } from 'lucide-react'
-import { deleteContainer, getContainer, getDefaultCompany, listProducts, listSuppliers, reopenContainer, saveContainer } from '../lib/api'
-import { COST_BASIS_LABELS, CONTAINER_STATUSES, CURRENCIES, formatDate, money, num, qtyText, today } from '../lib/format'
+import { ArrowLeft, FileSpreadsheet, PackageCheck, Trash2, Undo2 } from 'lucide-react'
+import {
+  deleteContainer,
+  getContainer,
+  getContainerProfit,
+  getContainerStock,
+  getDefaultCompany,
+  listProducts,
+  listSuppliers,
+  optional,
+  reopenContainer,
+  saveContainer,
+} from '../lib/api'
+import { CURRENCIES, ON_THE_WAY, formatDate, money, num, qtyText, today } from '../lib/format'
 import { landedCosts, lineQty, packingTotals, suggestedPrice } from '../lib/containers'
 import { useAuth } from '../auth/AuthProvider'
 import { ErrorBanner, Field, Loading } from '../components/ui'
+import { validatePage } from '../lib/formValidation'
 import { ProductSearch } from '../components/Pickers'
 import PackingListImport from '../components/PackingListImport'
 import { ContainerStatus } from './Containers'
 
+// Fields the database keeps (older containers may have them filled); the form only shows some,
+// the rest are sent back unchanged so nothing is lost.
 const EMPTY = {
   container_no: '', supplier_id: '', invoice_ref: '', order_date: today(), status: 'ordered',
   shipped_date: '', port_date: '', clearing_date: '', eta: '', shipping_line: '', bl_no: '',
-  currency: 'USD', exchange_rate: '', cost_basis: 'cbm', notes: '',
+  currency: 'USD', exchange_rate: '', notes: '',
 }
-const COMMON_EXPENSES = ['Freight', 'Duty & taxes', 'Clearing agent', 'Transport', 'Labour']
-const EDITABLE_STATUSES = CONTAINER_STATUSES.filter((s) => s.value !== 'received')
+const EXPENSES = ['Freight', 'Duty', 'Clearing', 'Other'] // saved names; labels below are what people see
+const EXPENSE_LABELS = {
+  Freight: { label: 'Shipping (freight)', hint: 'Container rent, China to port' },
+  Duty: { label: 'Customs duty & tax', hint: 'Paid to government at the port' },
+  Clearing: { label: 'Clearing agent', hint: 'Agent fee and port charges' },
+  Other: { label: 'Other costs', hint: 'Truck to store, labour, bank charges' },
+}
+const NO_EXPENSES = Object.fromEntries(EXPENSES.map((n) => [n, '']))
 
 let nextKey = 1
 const key = () => nextKey++
 const str = (v) => (v === null || v === undefined ? '' : String(v))
-const fmt4 = (n) => num(Math.round(Number(n) * 10000) / 10000)
+// Blank is fine (0); anything else must be a number, 0 or more
+const notAmount = (v) => String(v ?? '').trim() !== '' && !(Number(v) >= 0)
+const fmt2 = (n) => num(Math.round(Number(n) * 100) / 100)
+
+// Saved expenses -> the four boxes; any other name is added to "Other"
+function toExpenseBoxes(list) {
+  const boxes = { ...NO_EXPENSES }
+  for (const e of list) {
+    const name = EXPENSES.find((n) => n.toLowerCase() === e.name.trim().toLowerCase()) ?? 'Other'
+    boxes[name] = str((Number(boxes[name]) || 0) + Number(e.amount))
+  }
+  return boxes
+}
 
 export default function ContainerForm() {
   const { id } = useParams()
@@ -36,8 +68,11 @@ export default function ContainerForm() {
   const [margin, setMargin] = useState(0)
   const [doc, setDoc] = useState(null) // saved container, null when new
   const [form, setForm] = useState(EMPTY)
-  const [lines, setLines] = useState([]) // { key, product, cartons, carton_qty, loose, cbm, weight, unit_price, received_qty, price }
-  const [expenses, setExpenses] = useState([]) // { key, name, amount }
+  // supplier_id '' = same as the container's supplier (mixed containers name the shop per line)
+  const [lines, setLines] = useState([]) // { key, product, supplier_id, supplier_name, cartons, carton_qty, loose, cbm, weight, unit_price, received_qty }
+  const [expenses, setExpenses] = useState(NO_EXPENSES) // { Freight: '1200', ... } in Rs
+  const [lots, setLots] = useState({}) // { [product_id]: { received, remaining } }, first in first out
+  const [profit, setProfit] = useState({}) // { [product_id]: { sold, revenue, profit, ... } }
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState(location.state?.notice ?? '')
@@ -54,30 +89,35 @@ export default function ContainerForm() {
       canManage ? listSuppliers() : [],
       getDefaultCompany(),
       id ? getContainer(id, { withCosts: showCosts }) : null,
+      id ? optional(getContainerStock(id)) : {},
+      id && showCosts ? optional(getContainerProfit(id)) : {},
     ])
-      .then(([p, s, company, c]) => {
+      .then(([p, s, company, c, stockLeft, profitRows]) => {
         const byId = Object.fromEntries(p.map((x) => [x.id, x]))
         setProducts(p)
         setSuppliers(s.filter((x) => x.active || x.id === c?.supplier_id))
         setMargin(Number(company?.default_margin) || 0)
         setDoc(c)
+        setLots(stockLeft)
+        setProfit(profitRows)
         if (c) {
           setForm(Object.fromEntries(Object.keys(EMPTY).map((k) => [k, str(c[k])])))
           setLines(
             c.items.map((it) => ({
               key: key(),
               product: byId[it.product_id],
+              supplier_id: str(it.supplier_id),
+              supplier_name: it.supplier?.name ?? '',
               cartons: str(it.cartons),
               carton_qty: str(it.carton_qty),
               loose: Number(it.loose) ? str(it.loose) : '',
-              cbm: Number(it.cbm) ? str(it.cbm) : '',
-              weight: Number(it.weight) ? str(it.weight) : '',
+              cbm: str(it.cbm),
+              weight: str(it.weight),
               unit_price: it.price ? str(it.price.unit_price) : '',
               received_qty: it.received_qty,
-              price: it.price,
             })),
           )
-          setExpenses(c.expenses.map((e) => ({ key: key(), name: e.name, amount: str(e.amount) })))
+          setExpenses(toExpenseBoxes(c.expenses))
         }
         setDirty(false)
       })
@@ -87,11 +127,13 @@ export default function ContainerForm() {
   const received = doc?.status === 'received'
   const editable = canManage && !received
   const totals = useMemo(() => packingTotals(lines), [lines])
+  // Expenses are shared by CBM (container space) when the products have it, otherwise by value
+  const costBasis = totals.cbm > 0 ? 'cbm' : 'value'
+  const expenseList = useMemo(() => EXPENSES.filter((n) => Number(expenses[n]) > 0).map((n) => ({ name: n, amount: expenses[n] })), [expenses])
   const costs = useMemo(
-    () => (showCosts ? landedCosts(lines, { exchangeRate: form.exchange_rate, costBasis: form.cost_basis, expenses }) : []),
-    [showCosts, lines, form.exchange_rate, form.cost_basis, expenses],
+    () => (showCosts ? landedCosts(lines, { exchangeRate: form.exchange_rate, costBasis, expenses: expenseList }) : []),
+    [showCosts, lines, form.exchange_rate, costBasis, expenseList],
   )
-  const expenseTotal = expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
 
   if (!products) return error ? <ErrorBanner message={error} /> : <Loading />
 
@@ -101,12 +143,14 @@ export default function ContainerForm() {
     fn()
   }
   const set = (k) => (e) => change(() => setForm((f) => ({ ...f, [k]: e.target.value })))
+  const onTheWay = ON_THE_WAY.includes(form.status)
 
-  function setStatus(value) {
+  function setOnTheWay(yes) {
     change(() =>
       setForm((f) => {
-        const dateKey = CONTAINER_STATUSES.find((s) => s.value === value).date
-        return { ...f, status: value, [dateKey]: f[dateKey] || today() }
+        if (!yes) return { ...f, status: 'ordered' }
+        // keep an older "at port" / "clearing" status as it is
+        return ON_THE_WAY.includes(f.status) ? f : { ...f, status: 'shipped', shipped_date: f.shipped_date || today() }
       }),
     )
   }
@@ -122,7 +166,7 @@ export default function ContainerForm() {
       cartonRefs.current[existing.key]?.focus()
       return
     }
-    const line = { key: key(), product: p, cartons: '', carton_qty: str(p.carton_qty), loose: '', cbm: Number(p.cbm) ? str(p.cbm) : '', weight: '', unit_price: '' }
+    const line = { key: key(), product: p, supplier_id: '', cartons: '', carton_qty: str(p.carton_qty), loose: '', cbm: str(p.cbm), weight: '', unit_price: '' }
     change(() => setLines((prev) => [...prev, line]))
     setTimeout(() => cartonRefs.current[line.key]?.focus(), 0)
   }
@@ -133,7 +177,17 @@ export default function ContainerForm() {
       setLines((prev) => {
         const next = [...prev]
         for (const r of rows) {
-          const line = { key: key(), product: r.product, cartons: r.cartons, carton_qty: r.carton_qty, loose: r.loose, cbm: r.cbm, weight: r.weight, unit_price: r.unit_price }
+          const line = {
+            key: key(),
+            product: r.product,
+            supplier_id: r.supplier_id,
+            cartons: r.cartons,
+            carton_qty: r.carton_qty,
+            loose: r.loose,
+            cbm: r.cbm,
+            weight: r.weight,
+            unit_price: r.unit_price,
+          }
           const i = next.findIndex((l) => l.product.id === r.product.id)
           if (i >= 0) next[i] = line
           else next.push(line)
@@ -146,19 +200,6 @@ export default function ContainerForm() {
 
   const updateLine = (k, field, value) => change(() => setLines((prev) => prev.map((l) => (l.key === k ? { ...l, [field]: value } : l))))
   const removeLine = (k) => change(() => setLines((prev) => prev.filter((l) => l.key !== k)))
-  const updateExpense = (k, field, value) => change(() => setExpenses((prev) => prev.map((e) => (e.key === k ? { ...e, [field]: value } : e))))
-  const addExpense = (name = '') => change(() => setExpenses((prev) => [...prev, { key: key(), name, amount: '' }]))
-  const removeExpense = (k) => change(() => setExpenses((prev) => prev.filter((e) => e.key !== k)))
-
-  const problem = !form.container_no.trim()
-    ? 'Enter the container number.'
-    : !(Number(form.exchange_rate) > 0)
-      ? 'Enter the exchange rate (Rs for 1 ' + form.currency + ').'
-      : lines.some((l) => lineQty(l) <= 0)
-        ? 'Every line needs a quantity.'
-        : expenses.some((e) => !e.name.trim())
-          ? 'Every expense needs a name.'
-          : ''
 
   async function run(fn) {
     setBusy(true)
@@ -172,12 +213,15 @@ export default function ContainerForm() {
   }
 
   const handleSave = () =>
+    validatePage() &&
     run(async () => {
       const savedId = await saveContainer({
         ...(id ? { id } : {}),
         ...form,
+        cost_basis: costBasis,
         items: lines.map((l) => ({
           product_id: l.product.id,
+          supplier_id: l.supplier_id || null,
           cartons: l.cartons,
           carton_qty: l.carton_qty,
           loose: l.loose,
@@ -185,7 +229,7 @@ export default function ContainerForm() {
           weight: l.weight,
           unit_price: l.unit_price,
         })),
-        expenses: expenses.map((e) => ({ name: e.name, amount: e.amount })),
+        expenses: expenseList,
       })
       if (!id) {
         navigate(`/app/containers/${savedId}`, { replace: true, state: { notice: 'Container saved.' } })
@@ -212,7 +256,12 @@ export default function ContainerForm() {
     })
   }
 
-  const supplierName = doc?.supplier?.name ?? suppliers.find((s) => s.id === form.supplier_id)?.name
+  // Managers have the supplier list and may be changing it; others see the saved name
+  const supplierName = canManage ? suppliers.find((s) => s.id === form.supplier_id)?.name : doc?.supplier?.name
+  // Distinct suppliers on the packing list (a blank line counts as the container's supplier)
+  const supplierCount = new Set(lines.map((l) => l.supplier_id || form.supplier_id || 'none')).size
+  const totalLanded = costs.reduce((s, c) => s + c.goods + c.share, 0)
+  const expenseTotal = expenseList.reduce((s, e) => s + Number(e.amount), 0)
 
   return (
     <>
@@ -227,8 +276,8 @@ export default function ContainerForm() {
           </h1>
           {doc && (
             <p className="text-secondary">
-              {supplierName ?? 'No supplier'} · Ordered {formatDate(doc.order_date)}
-              {received && ` · Received ${formatDate(doc.received_date)}`}
+              {supplierName ?? 'No supplier'}
+              {received ? ` · Received ${formatDate(doc.received_date)}` : doc.eta ? ` · Arrives ${formatDate(doc.eta)}` : ''}
             </p>
           )}
         </div>
@@ -258,123 +307,96 @@ export default function ContainerForm() {
 
       {notice && <div className="notice">{notice}</div>}
       <ErrorBanner message={error} />
+      {received && doc.notes && <p className="text-secondary form-help">Notes: {doc.notes}</p>}
       {received && canManage && (
-        <p className="text-secondary form-help">This container is received and locked. {can('delete') ? 'Reopen it to make changes.' : 'An administrator can reopen it.'}</p>
+        <p className="text-secondary form-help">Received and locked. {can('delete') ? 'Reopen it to make changes.' : 'An administrator can reopen it.'}</p>
       )}
 
       <div className="stack">
         {/* ---------- Details ---------- */}
-        <div className="card">
-          <div className="card-head card-head-tight">
-            <div>
-              <h3>Details</h3>
-              <p className="text-secondary">Container, supplier and currency.</p>
-            </div>
-          </div>
-          <fieldset className="plain-fieldset" disabled={!editable}>
-            <div className="form-grid form-grid-4">
-              <Field label="Container no.">
-                <input className="input mono" value={form.container_no} onChange={set('container_no')} placeholder="e.g. MSKU0221809" autoFocus={!id} />
-              </Field>
-              <Field label="Supplier">
-                {editable ? (
-                  <select className="input" value={form.supplier_id} onChange={chooseSupplier}>
-                    <option value="">No supplier</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input className="input" value={supplierName ?? '—'} readOnly />
-                )}
-              </Field>
-              <Field label="Supplier invoice / PI no.">
-                <input className="input" value={form.invoice_ref} onChange={set('invoice_ref')} />
-              </Field>
-              <Field label="Order date">
-                <input type="date" className="input" value={form.order_date} onChange={set('order_date')} />
-              </Field>
-              <Field label="Currency">
-                <select className="input" value={form.currency} onChange={set('currency')}>
-                  {CURRENCIES.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label={`Exchange rate (Rs for 1 ${form.currency})`}>
-                <input className="input input-num" inputMode="decimal" value={form.exchange_rate} onChange={set('exchange_rate')} placeholder={form.currency === 'PKR' ? '1' : 'e.g. 280'} />
-              </Field>
-              <div className="span-2">
-                <Field label="Notes">
-                  <input className="input" value={form.notes} onChange={set('notes')} placeholder="Optional" />
+        {(editable || !received) && (
+          <div className="card">
+            <fieldset className="plain-fieldset" disabled={!editable}>
+              <div className="form-grid form-grid-4">
+                <Field label="Container no.">
+                  <input
+                    className="input mono"
+                    required
+                    value={form.container_no}
+                    onChange={set('container_no')}
+                    placeholder="e.g. MSKU0221809"
+                    autoFocus={!id}
+                    ref={(el) => el?.setCustomValidity(form.container_no && !form.container_no.trim() ? 'Container no. cannot be only spaces.' : '')}
+                  />
                 </Field>
-              </div>
-            </div>
-          </fieldset>
-        </div>
-
-        {/* ---------- Status ---------- */}
-        <div className="card">
-          <div className="card-head card-head-tight">
-            <div>
-              <h3>Status</h3>
-              <p className="text-secondary">Shipped, at port and clearing show as "On the way" on stock screens.</p>
-            </div>
-          </div>
-          {received ? (
-            <ol className="status-steps">
-              {CONTAINER_STATUSES.map((s) => (
-                <li key={s.value} className="done">
-                  <span className="strong">{s.label}</span>
-                  <span className="text-muted">{formatDate(doc[s.date]) || '—'}</span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <>
-              <div className="segmented segmented-wide">
-                {EDITABLE_STATUSES.map((s) => (
-                  <button key={s.value} className={form.status === s.value ? 'active' : ''} onClick={() => setStatus(s.value)} disabled={!editable}>
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-              <fieldset className="plain-fieldset" disabled={!editable}>
-                <div className="form-grid form-grid-4 status-dates">
-                  <Field label="Shipped on">
-                    <input type="date" className="input" value={form.shipped_date} onChange={set('shipped_date')} />
-                  </Field>
-                  <Field label="Reached port on">
-                    <input type="date" className="input" value={form.port_date} onChange={set('port_date')} />
-                  </Field>
-                  <Field label="Clearing from">
-                    <input type="date" className="input" value={form.clearing_date} onChange={set('clearing_date')} />
-                  </Field>
-                  <Field label="Expected arrival (ETA)">
-                    <input type="date" className="input" value={form.eta} onChange={set('eta')} />
-                  </Field>
-                  <Field label="Shipping line">
-                    <input className="input" value={form.shipping_line} onChange={set('shipping_line')} placeholder="e.g. Maersk" />
-                  </Field>
-                  <Field label="B/L no.">
-                    <input className="input mono" value={form.bl_no} onChange={set('bl_no')} />
+                <Field label="Supplier / Agent">
+                  {editable ? (
+                    <select className="input" value={form.supplier_id} onChange={chooseSupplier}>
+                      <option value="">No supplier</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input className="input" value={supplierName ?? '—'} readOnly />
+                  )}
+                </Field>
+                <Field label="Status">
+                  <div className="segmented segmented-fill">
+                    <button type="button" className={!onTheWay ? 'active' : ''} onClick={() => setOnTheWay(false)}>
+                      Ordered
+                    </button>
+                    <button type="button" className={onTheWay ? 'active' : ''} onClick={() => setOnTheWay(true)}>
+                      On the way
+                    </button>
+                  </div>
+                </Field>
+                <Field label="Expected arrival">
+                  <input type="date" className="input" value={form.eta} onChange={set('eta')} />
+                </Field>
+                {showCosts && (
+                  <>
+                    <Field label="Currency">
+                      <select className="input" value={form.currency} onChange={set('currency')}>
+                        {CURRENCIES.map((c) => (
+                          <option key={c}>{c}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label={`Rate (Rs for 1 ${form.currency})`}>
+                      <input
+                        className="input input-num"
+                        inputMode="decimal"
+                        required
+                        value={form.exchange_rate}
+                        onChange={set('exchange_rate')}
+                        ref={(el) => el?.setCustomValidity(form.exchange_rate !== '' && !(Number(form.exchange_rate) > 0) ? 'Rate must be a number more than 0.' : '')}
+                        placeholder={form.currency === 'PKR' ? '1' : 'e.g. 280'}
+                      />
+                    </Field>
+                  </>
+                )}
+                <div className={showCosts ? 'span-2' : 'span-all'}>
+                  <Field label="Notes">
+                    <input className="input" value={form.notes} onChange={set('notes')} placeholder="Optional: B/L no., shipping line, anything else" />
                   </Field>
                 </div>
-              </fieldset>
-            </>
-          )}
-        </div>
+              </div>
+            </fieldset>
+            {onTheWay && <p className="text-secondary form-help">On the way: shown on the Stock screen, not sellable until received.</p>}
+          </div>
+        )}
 
         {/* ---------- Packing list ---------- */}
-        <div className="card entry-lines">
+        <div className="card">
           <div className="card-head card-head-tight">
             <div>
-              <h3>Packing list</h3>
+              <h3>Products</h3>
               <p className="text-secondary">
-                {editable ? 'Search a product, press Enter, then cartons. Or import the supplier’s list.' : 'What is in this container.'}
-                {showCosts && ` Prices are per piece in ${form.currency}.`}
+                {editable ? 'Search a product and press Enter, or import the supplier’s list.' : 'What is in this container.'}
+                {showCosts && editable && ` Price is per piece in ${form.currency}.`}
               </p>
             </div>
             {editable && (
@@ -385,21 +407,20 @@ export default function ContainerForm() {
           </div>
           {editable && <ProductSearch ref={searchRef} products={products} onPick={addProduct} placeholder="Add a product by name or code" />}
 
-          {lines.length > 0 && (
+          {lines.length > 0 ? (
             <div className="table-scroll">
-              <table className="table table-compact lines-table packing-table">
+              <table className="table table-compact lines-table">
                 <thead>
                   <tr>
                     <th>Product</th>
+                    <th>Supplier</th>
                     <th className="num">Cartons</th>
-                    <th className="num">Qty/ctn</th>
+                    <th className="num">Per carton</th>
                     <th className="num">Loose</th>
                     <th className="num">Total</th>
-                    <th className="num">CBM/ctn</th>
-                    <th className="num">Kg/ctn</th>
                     {showCosts && <th className="num">Price</th>}
-                    {showCosts && <th className="num">Amount</th>}
                     {received && <th className="num">Received</th>}
+                    {received && <th className="num">Left</th>}
                     {editable && <th />}
                   </tr>
                 </thead>
@@ -434,38 +455,53 @@ export default function ContainerForm() {
                             </span>
                           </div>
                         </td>
-                        <td className="num" data-label="Cartons">
-                          {input('cartons', { ref: (el) => (cartonRefs.current[l.key] = el) })}
+                        <td className="line-supplier" data-label="Supplier">
+                          {editable ? (
+                            <select className="input input-sm" value={l.supplier_id} onChange={(e) => updateLine(l.key, 'supplier_id', e.target.value)}>
+                              <option value="">Same as container{supplierName ? ` (${supplierName})` : ''}</option>
+                              {suppliers.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : l.supplier_id ? (
+                            l.supplier_name || '—'
+                          ) : (
+                            <span className="text-muted">{supplierName ?? '—'}</span>
+                          )}
                         </td>
-                        <td className="num" data-label="Qty/ctn">
-                          {input('carton_qty')}
+                        <td className="num" data-label="Cartons">
+                          {input('cartons', {
+                            ref: (el) => {
+                              cartonRefs.current[l.key] = el
+                              el?.setCustomValidity(qty > 0 ? '' : 'Enter cartons or loose pieces.')
+                            },
+                          })}
+                        </td>
+                        <td className="num" data-label="Per carton">
+                          {input('carton_qty', { ref: (el) => el?.setCustomValidity(Number(l.carton_qty) >= 1 ? '' : 'At least 1 per carton.') })}
                         </td>
                         <td className="num" data-label="Loose">
-                          {input('loose')}
+                          {input('loose', { ref: (el) => el?.setCustomValidity(notAmount(l.loose) ? 'Loose must be a number.' : '') })}
                         </td>
                         <td className="num strong" data-label="Total">
                           {qtyText(qty, p.unit, l.carton_qty)}
                         </td>
-                        <td className="num" data-label="CBM/ctn">
-                          {input('cbm')}
-                        </td>
-                        <td className="num" data-label="Kg/ctn">
-                          {input('weight')}
-                        </td>
                         {showCosts && (
                           <td className="num" data-label="Price">
-                            {input('unit_price')}
-                          </td>
-                        )}
-                        {showCosts && (
-                          <td className="num text-secondary" data-label="Amount">
-                            {num(qty * (Number(l.unit_price) || 0))}
+                            {input('unit_price', { ref: (el) => el?.setCustomValidity(notAmount(l.unit_price) ? 'Price must be a number, 0 or more.' : '') })}
                           </td>
                         )}
                         {received && (
-                          <td className={`num strong ${short ? 'text-warning' : ''}`} data-label="Received">
+                          <td className={`num ${short ? 'text-warning strong' : ''}`} data-label="Received">
                             {qtyText(l.received_qty, p.unit, l.carton_qty)}
                             {short && <div className="text-muted">short {qtyText(qty - Number(l.received_qty), p.unit, l.carton_qty)}</div>}
+                          </td>
+                        )}
+                        {received && (
+                          <td className="num strong" data-label="Left">
+                            <Left lot={lots[p.id]} unit={p.unit} cartonQty={l.carton_qty} />
                           </td>
                         )}
                         {editable && (
@@ -481,95 +517,74 @@ export default function ContainerForm() {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td className="strong">
-                      {lines.length} item{lines.length === 1 ? '' : 's'}
+                    <td className="text-secondary">
+                      {lines.length} product{lines.length === 1 ? '' : 's'}
+                      {totals.cbm > 0 && ` · ${num(totals.cbm)} m³`}
                     </td>
+                    <td className="text-secondary">{supplierCount > 1 ? `${supplierCount} suppliers` : ''}</td>
                     <td className="num strong">{num(totals.cartons)}</td>
                     <td colSpan={2} />
                     <td className="num strong">{num(totals.qty)}</td>
-                    <td className="num strong">{num(totals.cbm)} m³</td>
-                    <td className="num strong">{num(totals.weight)} kg</td>
-                    {showCosts && <td />}
                     {showCosts && (
                       <td className="num strong">
-                        {form.currency} {num(totals.value)}
+                        {form.currency} {fmt2(totals.value)}
                       </td>
                     )}
+                    {received && <td />}
                     {received && <td />}
                     {editable && <td />}
                   </tr>
                 </tfoot>
               </table>
             </div>
+          ) : (
+            <p className="text-muted rank-empty">{editable ? 'No products yet.' : 'This container has no products.'}</p>
           )}
-          {lines.length === 0 && <p className="text-muted rank-empty">{editable ? 'No products yet.' : 'This container has no products.'}</p>}
         </div>
 
-        {/* ---------- Expenses + landed cost (costs permission) ---------- */}
+        {/* ---------- Expenses + landed cost (admin / manager) ---------- */}
         {showCosts && (
           <div className="container-costs">
             <div className="card">
               <div className="card-head card-head-tight">
                 <div>
-                  <h3>Expenses</h3>
-                  <p className="text-secondary">Everything paid to bring the goods to the store, in Rs.</p>
+                  <h3>Import costs (Rs)</h3>
+                  <p className="text-secondary">Money paid on top of the goods price, from China to your store.</p>
                 </div>
               </div>
               <fieldset className="plain-fieldset" disabled={!editable}>
-                <Field label="Share expenses">
-                  <select className="input" value={form.cost_basis} onChange={set('cost_basis')}>
-                    {Object.entries(COST_BASIS_LABELS).map(([v, label]) => (
-                      <option key={v} value={v}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <ul className="expense-list">
-                  {expenses.map((e) => (
-                    <li key={e.key}>
-                      <input className="input" value={e.name} placeholder="Expense" onChange={(ev) => updateExpense(e.key, 'name', ev.target.value)} />
+                <div className="expense-boxes">
+                  {EXPENSES.map((name) => (
+                    <Field key={name} label={EXPENSE_LABELS[name].label}>
                       <input
                         className="input input-num"
                         inputMode="decimal"
-                        value={e.amount}
                         placeholder="0"
-                        onChange={(ev) => updateExpense(e.key, 'amount', ev.target.value)}
+                        value={expenses[name]}
+                        onChange={(e) => change(() => setExpenses((x) => ({ ...x, [name]: e.target.value })))}
+                        ref={(el) => el?.setCustomValidity(notAmount(expenses[name]) ? 'Enter an amount in Rs, 0 or more.' : '')}
                       />
-                      {editable && (
-                        <button type="button" className="icon-btn danger" onClick={() => removeExpense(e.key)} aria-label="Remove expense">
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </li>
+                      <span className="field-note">{EXPENSE_LABELS[name].hint}</span>
+                    </Field>
                   ))}
-                </ul>
-              </fieldset>
-              {editable && (
-                <div className="chips expense-chips">
-                  {COMMON_EXPENSES.filter((name) => !expenses.some((e) => e.name === name)).map((name) => (
-                    <button key={name} type="button" className="chip" onClick={() => addExpense(name)}>
-                      <Plus size={13} /> {name}
-                    </button>
-                  ))}
-                  <button type="button" className="chip" onClick={() => addExpense()}>
-                    <Plus size={13} /> Other
-                  </button>
                 </div>
-              )}
+              </fieldset>
               <div className="cost-total">
-                <span className="text-secondary">Total expenses</span>
+                <span className="text-secondary">Total import costs</span>
                 <span className="strong">{money(expenseTotal)}</span>
               </div>
+              <p className="text-muted field-note">
+                {costBasis === 'cbm'
+                  ? 'Split over the products by the space they take in the container (CBM).'
+                  : 'Split over the products by their price. Add CBM to the products to split by space instead.'}
+              </p>
             </div>
 
             <div className="card card-flush">
               <div className="card-head">
                 <div>
                   <h3>Landed cost</h3>
-                  <p className="text-secondary">
-                    Goods × {num(form.exchange_rate || 0)} + share of expenses, per piece. Suggested price adds {num(margin)}% (Settings).
-                  </p>
+                  <p className="text-secondary">What one piece costs at the store. Suggested price adds {num(margin)}% (Settings).</p>
                 </div>
               </div>
               {lines.length === 0 ? (
@@ -580,12 +595,9 @@ export default function ContainerForm() {
                     <thead>
                       <tr>
                         <th>Product</th>
-                        <th className="num">Goods (Rs)</th>
-                        <th className="num">Expenses (Rs)</th>
                         <th className="num">Landed / pc</th>
                         <th className="num">Sale price</th>
                         <th className="num">Suggested</th>
-                        {received && <th className="num">New avg. cost</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -595,25 +607,20 @@ export default function ContainerForm() {
                         return (
                           <tr key={l.key}>
                             <td className="strong">{l.product.name}</td>
-                            <td className="num">{num(c.goods)}</td>
-                            <td className="num">{num(c.share)}</td>
-                            <td className="num strong">{fmt4(c.landed)}</td>
+                            <td className="num strong">{money(c.landed)}</td>
                             <td className={`num ${low ? 'text-critical strong' : ''}`} title={low ? 'Sale price is below the landed cost' : undefined}>
                               {money(l.product.price)}
                             </td>
                             <td className="num">{money(suggestedPrice(c.landed, margin))}</td>
-                            {received && <td className="num">{l.price?.new_cost != null ? fmt4(l.price.new_cost) : '—'}</td>}
                           </tr>
                         )
                       })}
                     </tbody>
                     <tfoot>
                       <tr>
-                        <td className="strong">Total</td>
-                        <td className="num strong">{num(costs.reduce((s, c) => s + c.goods, 0))}</td>
-                        <td className="num strong">{num(costs.reduce((s, c) => s + c.share, 0))}</td>
-                        <td colSpan={received ? 4 : 3} className="num strong">
-                          {money(costs.reduce((s, c) => s + c.goods + c.share, 0))}
+                        <td className="text-secondary">Whole container</td>
+                        <td colSpan={3} className="num strong">
+                          {money(totalLanded)}
                         </td>
                       </tr>
                     </tfoot>
@@ -624,21 +631,80 @@ export default function ContainerForm() {
           </div>
         )}
 
+        {received && showCosts && <ProfitCard lines={lines} lots={lots} profit={profit} />}
+
         {editable && (
           <div className="card form-footer">
-            <span className="text-secondary mr-auto">{problem || (dirty ? 'Unsaved changes' : doc ? 'All changes saved' : '')}</span>
+            <span className="text-secondary mr-auto">{dirty ? 'Unsaved changes' : doc ? 'All changes saved' : ''}</span>
             <Link to="/app/containers" className="btn btn-secondary">
               Cancel
             </Link>
-            <button className="btn btn-primary" disabled={Boolean(problem) || busy || (doc && !dirty)} onClick={handleSave}>
+            <button className="btn btn-primary" disabled={busy || (doc && !dirty)} onClick={handleSave}>
               {busy ? 'Saving…' : 'Save container'}
             </button>
           </div>
         )}
-
       </div>
 
-      {importing && <PackingListImport products={products} onProducts={setProducts} onImport={importRows} onClose={() => setImporting(false)} />}
+      {importing && (
+        <PackingListImport products={products} suppliers={suppliers} onProducts={setProducts} onImport={importRows} onClose={() => setImporting(false)} />
+      )}
     </>
+  )
+}
+
+// What is still in stock from this container (first in, first out)
+function Left({ lot, unit, cartonQty }) {
+  if (!lot) return '—'
+  return lot.remaining > 0 ? qtyText(lot.remaining, unit, cartonQty) : <span className="text-muted">Sold out</span>
+}
+
+// Sales matched to this container's goods, first in first out (admin / manager)
+function ProfitCard({ lines, lots, profit }) {
+  const rows = lines.map((l) => ({ line: l, p: profit[l.product.id] ?? { sold: 0, revenue: 0, profit: 0 } }))
+  const total = rows.reduce((t, { p }) => ({ revenue: t.revenue + p.revenue, profit: t.profit + p.profit }), { revenue: 0, profit: 0 })
+  return (
+    <div className="card card-flush">
+      <div className="card-head">
+        <div>
+          <h3>Sales and profit</h3>
+          <p className="text-secondary">Oldest stock is sold first. Profit is at the bill rate, before bill discounts.</p>
+        </div>
+      </div>
+      <div className="table-scroll">
+        <table className="table table-compact">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th className="num">Sold</th>
+              <th className="num">Left</th>
+              <th className="num">Revenue</th>
+              <th className="num">Profit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ line: l, p }) => (
+              <tr key={l.key}>
+                <td className="strong">{l.product.name}</td>
+                <td className="num">{qtyText(p.sold, l.product.unit, l.carton_qty)}</td>
+                <td className="num">
+                  <Left lot={lots[l.product.id]} unit={l.product.unit} cartonQty={l.carton_qty} />
+                </td>
+                <td className="num">{money(p.revenue)}</td>
+                <td className={`num strong ${p.profit < 0 ? 'text-critical' : ''}`}>{money(p.profit)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td className="strong">Total</td>
+              <td colSpan={2} />
+              <td className="num strong">{money(total.revenue)}</td>
+              <td className={`num strong ${total.profit < 0 ? 'text-critical' : ''}`}>{money(total.profit)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
   )
 }

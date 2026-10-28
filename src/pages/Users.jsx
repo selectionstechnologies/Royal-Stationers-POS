@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Briefcase, Eye, EyeOff, KeyRound, Pencil, Plus, Power, ShieldCheck, Trash2, UserRound, Warehouse } from 'lucide-react'
+import { Briefcase, Check, Copy, Eye, EyeOff, KeyRound, Pencil, Plus, Power, ShieldCheck, Sparkles, Trash2, UserRound, Warehouse } from 'lucide-react'
 import { createUser, deleteUser, listUsers, setUserPassword, updateUser } from '../lib/api'
 import { formatDate, initials } from '../lib/format'
 import { ROLES, ROLE_LABELS } from '../lib/permissions'
@@ -169,8 +169,85 @@ function RolePill({ role }) {
   )
 }
 
-function PasswordInput({ value, onChange, autoFocus, placeholder = 'At least 8 characters' }) {
-  const [show, setShow] = useState(false)
+// Easy to read aloud or type: no 0/O, 1/l/I
+const PASSWORD_CHARS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+function generatePassword(length = 10) {
+  const bytes = crypto.getRandomValues(new Uint32Array(length))
+  return Array.from(bytes, (b) => PASSWORD_CHARS[b % PASSWORD_CHARS.length]).join('')
+}
+
+function CopyButton({ text, label = 'Copy' }) {
+  const [copied, setCopied] = useState(false)
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // clipboard blocked: the text is on screen to copy by hand
+    }
+  }
+  return (
+    <button type="button" className="btn btn-secondary btn-sm" onClick={copy}>
+      {copied ? <Check size={16} /> : <Copy size={16} />} {copied ? 'Copied' : label}
+    </button>
+  )
+}
+
+// Shown once, right after an administrator sets a password: it is never stored in readable form
+function Credentials({ user, email, password }) {
+  return (
+    <div className="credentials">
+      <p className="text-secondary">
+        Give these details to <strong>{user}</strong>. The password is not saved anywhere readable and will not be shown again. If it is lost, set a new
+        one.
+      </p>
+      <dl>
+        <dt>Email</dt>
+        <dd>
+          <span className="mono">{email}</span>
+        </dd>
+        <dt>Password</dt>
+        <dd>
+          <span className="mono strong">{password}</span>
+          <CopyButton text={password} />
+        </dd>
+      </dl>
+      <CopyButton text={`Royal Stationers login\nEmail: ${email}\nPassword: ${password}`} label="Copy both" />
+    </div>
+  )
+}
+
+function PasswordFields({ password, confirm, setPassword, setConfirm, autoFocus }) {
+  const mismatch = confirm !== '' && confirm !== password ? 'Passwords do not match.' : ''
+  const [revealed, setRevealed] = useState(false)
+  function generate() {
+    const pw = generatePassword()
+    setPassword(pw)
+    setConfirm(pw)
+    setRevealed(true)
+  }
+  return (
+    <>
+      <Field label="Password">
+        <PasswordInput value={password} onChange={setPassword} autoFocus={autoFocus} visible={revealed} required minLength={8} />
+      </Field>
+      <Field label="Confirm password">
+        <PasswordInput value={confirm} onChange={setConfirm} placeholder="Repeat password" visible={revealed} required customError={mismatch} />
+      </Field>
+      <div className="span-2">
+        <button type="button" className="link-btn generate-btn" onClick={generate}>
+          <Sparkles size={14} /> Generate a strong password
+        </button>
+      </div>
+    </>
+  )
+}
+
+function PasswordInput({ value, onChange, autoFocus, visible = false, placeholder = 'At least 8 characters', required, minLength, customError = '' }) {
+  const [show, setShow] = useState(visible)
+  useEffect(() => setShow(visible), [visible])
   return (
     <div className="input-icon">
       <KeyRound size={16} />
@@ -180,6 +257,9 @@ function PasswordInput({ value, onChange, autoFocus, placeholder = 'At least 8 c
         autoComplete="new-password"
         autoFocus={autoFocus}
         placeholder={placeholder}
+        required={required}
+        minLength={minLength}
+        ref={(el) => el?.setCustomValidity(customError)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -190,12 +270,6 @@ function PasswordInput({ value, onChange, autoFocus, placeholder = 'At least 8 c
   )
 }
 
-function passwordProblem(pw, confirm) {
-  if (pw.length < 8) return 'Password must be at least 8 characters.'
-  if (pw !== confirm) return 'Passwords do not match.'
-  return ''
-}
-
 function UserModal({ user, isMe, onClose, onSaved }) {
   const isEdit = Boolean(user)
   const [form, setForm] = useState({ name: user?.name ?? '', email: user?.email ?? '', role: user?.role ?? 'cashier' })
@@ -203,24 +277,37 @@ function UserModal({ user, isMe, onClose, onSaved }) {
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [created, setCreated] = useState(null) // new user, shown with their password before closing
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.name.trim()) return setError('Name is required.')
-    if (!isEdit) {
-      if (!form.email.trim()) return setError('Email is required.')
-      const problem = passwordProblem(password, confirm)
-      if (problem) return setError(problem)
-    }
+    if (!form.name.trim()) return setError('Name cannot be only spaces.')
     setBusy(true)
     setError('')
     try {
-      onSaved(isEdit ? await updateUser(user.id, { name: form.name, role: form.role }) : await createUser({ ...form, password }))
+      if (isEdit) onSaved(await updateUser(user.id, { name: form.name, role: form.role }))
+      else setCreated(await createUser({ ...form, password }))
     } catch (err) {
       setError(err.message)
       setBusy(false)
     }
+  }
+
+  if (created) {
+    return (
+      <Modal
+        title="User created"
+        onClose={() => onSaved(created)}
+        footer={
+          <button className="btn btn-primary" onClick={() => onSaved(created)}>
+            Done
+          </button>
+        }
+      >
+        <Credentials user={created.name} email={created.email} password={password} />
+      </Modal>
+    )
   }
 
   return (
@@ -239,10 +326,10 @@ function UserModal({ user, isMe, onClose, onSaved }) {
       }
     >
       <ErrorBanner message={error} />
-      <form id="user-form" className="form-grid" onSubmit={handleSubmit} noValidate>
+      <form id="user-form" className="form-grid" onSubmit={handleSubmit}>
         <div className="span-2">
           <Field label="Full name">
-            <input className="input" autoFocus value={form.name} onChange={set('name')} placeholder="e.g. Ali Hassan" />
+            <input className="input" autoFocus required value={form.name} onChange={set('name')} placeholder="e.g. Ali Hassan" />
           </Field>
         </div>
         <div className="span-2">
@@ -250,6 +337,7 @@ function UserModal({ user, isMe, onClose, onSaved }) {
             <input
               className="input"
               type="email"
+              required
               value={form.email}
               onChange={set('email')}
               disabled={isEdit}
@@ -279,16 +367,7 @@ function UserModal({ user, isMe, onClose, onSaved }) {
           {isMe && <span className="field-note">You cannot change your own role.</span>}
         </div>
 
-        {!isEdit && (
-          <>
-            <Field label="Password">
-              <PasswordInput value={password} onChange={setPassword} />
-            </Field>
-            <Field label="Confirm password">
-              <PasswordInput value={confirm} onChange={setConfirm} placeholder="Repeat password" />
-            </Field>
-          </>
-        )}
+        {!isEdit && <PasswordFields password={password} confirm={confirm} setPassword={setPassword} setConfirm={setConfirm} />}
       </form>
     </Modal>
   )
@@ -303,8 +382,6 @@ function PasswordModal({ user, onClose }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const problem = passwordProblem(password, confirm)
-    if (problem) return setError(problem)
     setBusy(true)
     setError('')
     try {
@@ -338,22 +415,20 @@ function PasswordModal({ user, onClose }) {
       }
     >
       {done ? (
-        <div className="success-box">
-          Password updated for <strong>{user.name}</strong>. Share the new password with them securely.
-        </div>
+        <>
+          <div className="success-box">
+            Password updated for <strong>{user.name}</strong>.
+          </div>
+          <Credentials user={user.name} email={user.email} password={password} />
+        </>
       ) : (
         <>
           <p className="text-secondary modal-intro">
             Set a new password for <strong>{user.name}</strong> ({user.email}).
           </p>
           <ErrorBanner message={error} />
-          <form id="password-form" className="form-grid" onSubmit={handleSubmit} noValidate>
-            <Field label="New password">
-              <PasswordInput value={password} onChange={setPassword} autoFocus />
-            </Field>
-            <Field label="Confirm password">
-              <PasswordInput value={confirm} onChange={setConfirm} placeholder="Repeat password" />
-            </Field>
+          <form id="password-form" className="form-grid" onSubmit={handleSubmit}>
+            <PasswordFields password={password} confirm={confirm} setPassword={setPassword} setConfirm={setConfirm} autoFocus />
           </form>
         </>
       )}

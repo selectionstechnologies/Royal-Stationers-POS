@@ -79,7 +79,7 @@ export default function StockEntries() {
                 <th>Date</th>
                 <th>Type</th>
                 <th>Store</th>
-                <th className="hide-sm">Note</th>
+                <th className="hide-sm cell-fill">Note</th>
                 <th className="hide-sm">By</th>
                 <th className="num hide-sm">Products</th>
                 <th />
@@ -99,10 +99,16 @@ export default function StockEntries() {
                         <span className={`status ${KIND_CLS[e.kind]}`}>{ENTRY_LABELS[e.kind]}</span>
                       </td>
                       <td>
-                        {e.location?.name}
-                        {e.to_location && <span className="text-secondary"> → {e.to_location.name}</span>}
+                        <div className="store-cell">
+                          <span>{e.location?.name}</span>
+                          {e.to_location && <span className="text-secondary">→ {e.to_location.name}</span>}
+                        </div>
                       </td>
-                      <td className="text-secondary truncate hide-sm">{e.note || '—'}</td>
+                      <td className="text-secondary hide-sm cell-fill">
+                        <span className="cell-truncate" title={e.note || undefined}>
+                          {e.note || '—'}
+                        </span>
+                      </td>
                       <td className="text-secondary hide-sm">{e.creator?.name ?? '—'}</td>
                       <td className="num hide-sm">{items.length}</td>
                       <td className="row-actions" onClick={(ev) => ev.stopPropagation()}>

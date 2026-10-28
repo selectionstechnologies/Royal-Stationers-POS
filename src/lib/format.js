@@ -101,17 +101,17 @@ export const DELIVERY_LABELS = { counter: 'Counter', bilty: 'Bilty', delivery: '
 export const METHOD_LABELS = { cash: 'Cash', bank: 'Bank', cheque: 'Cheque' }
 export const ENTRY_LABELS = { opening: 'Opening stock', in: 'Stock in', out: 'Stock out', transfer: 'Transfer' }
 
-// Container status, in order. Shipped, at port and clearing count as "on the way".
+// Container status as shown: Ordered, On the way, Received. The database also allows
+// 'at_port' and 'clearing' (older containers); they show as "On the way".
 export const CONTAINER_STATUSES = [
-  { value: 'ordered', label: 'Ordered', date: 'order_date', tone: 'status-neutral' },
-  { value: 'shipped', label: 'Shipped', date: 'shipped_date', tone: 'status-info' },
-  { value: 'at_port', label: 'At port', date: 'port_date', tone: 'status-info' },
-  { value: 'clearing', label: 'Clearing', date: 'clearing_date', tone: 'status-warning' },
-  { value: 'received', label: 'Received', date: 'received_date', tone: 'status-good' },
+  { value: 'ordered', label: 'Ordered', tone: 'status-neutral' },
+  { value: 'shipped', label: 'On the way', tone: 'status-info' },
+  { value: 'at_port', label: 'On the way', tone: 'status-info' },
+  { value: 'clearing', label: 'On the way', tone: 'status-info' },
+  { value: 'received', label: 'Received', tone: 'status-good' },
 ]
 export const ON_THE_WAY = ['shipped', 'at_port', 'clearing']
 export const CURRENCIES = ['USD', 'RMB', 'PKR']
-export const COST_BASIS_LABELS = { cbm: 'By CBM (space)', value: 'By value', cartons: 'By cartons' }
 
 // Preview only - the database recalculates these when saving.
 export function computeInvoice(items, discount, freight) {

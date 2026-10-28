@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, History, Printer } from 'lucide-react'
-import { getProduct, getProductContainers, getProductLedger, listLocations } from '../lib/api'
+import { getProduct, getProductContainers, getProductLedger, getProductLots, listLocations, optional } from '../lib/api'
 import { ON_THE_WAY, formatDate, money, num, qtyText } from '../lib/format'
 import { useAuth } from '../auth/AuthProvider'
 import { EmptyState, ErrorBanner, Loading } from '../components/ui'
@@ -27,6 +27,7 @@ export default function ProductLedger() {
   const [moves, setMoves] = useState(null)
   const [locations, setLocations] = useState([])
   const [containers, setContainers] = useState([])
+  const [lots, setLots] = useState({}) // { [container_id]: remaining }
   const [error, setError] = useState('')
   const [locationId, setLocationId] = useState('')
   const [from, setFrom] = useState('')
@@ -36,12 +37,13 @@ export default function ProductLedger() {
   useEffect(() => {
     setProduct(null)
     setMoves(null)
-    Promise.all([getProduct(id), getProductLedger(id), listLocations(), showContainers ? getProductContainers(id) : []])
-      .then(([p, m, l, c]) => {
+    Promise.all([getProduct(id), getProductLedger(id), listLocations(), showContainers ? getProductContainers(id) : [], showContainers ? optional(getProductLots(id)) : {}])
+      .then(([p, m, l, c, lt]) => {
         setProduct(p)
         setMoves(m)
         setLocations(l)
         setContainers(c)
+        setLots(lt)
       })
       .catch((e) => setError(e.message))
   }, [id, showContainers])
@@ -179,15 +181,19 @@ export default function ProductLedger() {
                 <th>Status</th>
                 <th className="hide-sm">Date</th>
                 <th className="num">Quantity</th>
+                <th className="num">Left</th>
               </tr>
             </thead>
             <tbody>
-              {containers.map(({ containers: c, qty, received_qty }) => (
+              {containers.map(({ containers: c, qty, received_qty, supplier }) => (
                 <tr key={c.id}>
                   <td>
-                    <Link to={`/app/containers/${c.id}`} className="link mono">
-                      {c.container_no}
-                    </Link>
+                    <div className="cell-stack">
+                      <Link to={`/app/containers/${c.id}`} className="link mono">
+                        {c.container_no}
+                      </Link>
+                      <span className="text-muted">{supplier?.name ?? c.supplier?.name ?? 'No supplier'}</span>
+                    </div>
                   </td>
                   <td>
                     <ContainerStatus status={c.status} />
@@ -195,7 +201,10 @@ export default function ProductLedger() {
                   <td className="text-secondary hide-sm">
                     {c.status === 'received' ? formatDate(c.received_date) : c.eta ? `ETA ${formatDate(c.eta)}` : formatDate(c.order_date)}
                   </td>
-                  <td className="num strong">{qtyText(received_qty ?? qty, product.unit, product.carton_qty)}</td>
+                  <td className="num">{qtyText(received_qty ?? qty, product.unit, product.carton_qty)}</td>
+                  <td className="num strong">
+                    {c.status !== 'received' ? '—' : lots[c.id] > 0 ? qtyText(lots[c.id], product.unit, product.carton_qty) : <span className="text-muted">Sold out</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>

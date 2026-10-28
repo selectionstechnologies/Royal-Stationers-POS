@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   ArrowLeftRight,
   Boxes,
@@ -13,6 +13,7 @@ import {
   Settings as SettingsIcon,
   ShieldCheck,
   Ship,
+  UserRound,
   Users,
   X,
 } from 'lucide-react'
@@ -88,13 +89,15 @@ export default function Layout() {
         </nav>
 
         <div className="sidebar-user">
-          <div className="avatar">{initials(user?.name || user?.email)}</div>
-          <div className="user-meta">
-            <div className="user-email" title={user?.email}>
-              {user?.name || user?.email}
+          <NavLink to="/app/profile" className="sidebar-profile" title="My profile">
+            <div className="avatar">{initials(user?.name || user?.email)}</div>
+            <div className="user-meta">
+              <div className="user-email" title={user?.email}>
+                {user?.name || user?.email}
+              </div>
+              <div className="user-role">{ROLE_LABELS[user?.role] ?? user?.role}</div>
             </div>
-            <div className="user-role">{ROLE_LABELS[user?.role] ?? user?.role}</div>
-          </div>
+          </NavLink>
           <button className="icon-btn" onClick={signOut} title="Sign out" aria-label="Sign out">
             <LogOut size={18} />
           </button>
@@ -112,12 +115,61 @@ export default function Layout() {
             {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
           <span className={`role-pill role-${user?.role}`}>{ROLE_LABELS[user?.role]}</span>
-          <div className="avatar avatar-sm" title={user?.email}>{initials(user?.name || user?.email)}</div>
+          <UserMenu user={user} signOut={signOut} />
         </header>
         <main className="content">
           <Outlet />
         </main>
       </div>
+    </div>
+  )
+}
+
+// Avatar in the top bar: opens a small menu with the profile link and sign out
+function UserMenu({ user, signOut }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const location = useLocation()
+
+  useEffect(() => setOpen(false), [location.pathname])
+  useEffect(() => {
+    if (!open) return
+    const close = (e) => (e.type === 'keydown' ? e.key === 'Escape' : !ref.current?.contains(e.target)) && setOpen(false)
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [open])
+
+  return (
+    <div className="user-menu" ref={ref}>
+      <button
+        type="button"
+        className="avatar avatar-sm avatar-btn"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Account menu"
+        title={user?.name || user?.email}
+      >
+        {initials(user?.name || user?.email)}
+      </button>
+      {open && (
+        <div className="user-menu-panel" role="menu">
+          <div className="user-menu-head">
+            <span className="strong">{user?.name}</span>
+            <span className="text-muted">{user?.email}</span>
+          </div>
+          <Link to="/app/profile" className="user-menu-item" role="menuitem">
+            <UserRound size={16} /> My profile
+          </Link>
+          <button type="button" className="user-menu-item" role="menuitem" onClick={signOut}>
+            <LogOut size={16} /> Sign out
+          </button>
+        </div>
+      )}
     </div>
   )
 }

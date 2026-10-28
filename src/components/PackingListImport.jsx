@@ -9,7 +9,7 @@ import { ErrorBanner, Modal } from './ui'
 
 // Reads a packing list CSV, matches rows to products and hands the good rows to `onImport(rows)`.
 // Rows with an unknown product can be created as new products first (needs 'products.manage').
-export default function PackingListImport({ products, onProducts, onImport, onClose }) {
+export default function PackingListImport({ products, suppliers = [], onProducts, onImport, onClose }) {
   const { can } = useAuth()
   const inputRef = useRef(null)
   const [text, setText] = useState('')
@@ -24,7 +24,7 @@ export default function PackingListImport({ products, onProducts, onImport, onCl
   const creatable = invalid.filter((r) => !r.product && r.name && r.errors.length === 1)
 
   function read(csv, list) {
-    const result = readPackingList(csv, list)
+    const result = readPackingList(csv, list, suppliers)
     if (result.error) setError(result.error)
     else if (!result.rows.length) setError('No rows found under the header.')
     else setRows(result.rows)
@@ -99,7 +99,7 @@ export default function PackingListImport({ products, onProducts, onImport, onCl
         </div>
         <div className="strong">{fileName || 'Click to choose the packing list (CSV)'}</div>
         <div className="text-muted">
-          Required: <b>code</b> or <b>name</b>, <b>cartons</b> · Optional: carton qty, loose, cbm, weight, price (per piece, in the container currency)
+          Required: <b>code</b> or <b>name</b>, <b>cartons</b> · Optional: carton qty, loose, cbm, price (per piece, in the container currency), supplier
         </div>
       </div>
 
@@ -131,6 +131,7 @@ export default function PackingListImport({ products, onProducts, onImport, onCl
                   <th className="num">Qty/ctn</th>
                   <th className="num">CBM</th>
                   <th className="num">Price</th>
+                  <th>Supplier</th>
                   <th>Result</th>
                 </tr>
               </thead>
@@ -148,6 +149,7 @@ export default function PackingListImport({ products, onProducts, onImport, onCl
                     <td className="num">{r.carton_qty}</td>
                     <td className="num">{r.cbm || '—'}</td>
                     <td className="num">{r.unit_price || '—'}</td>
+                    <td className="text-secondary">{r.supplier_name || 'Same as container'}</td>
                     <td>
                       {r.errors.length ? (
                         <span className="import-error">{r.errors.join(' · ')}</span>

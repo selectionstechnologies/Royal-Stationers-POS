@@ -4,7 +4,8 @@ import { ArrowLeft, Trash2 } from 'lucide-react'
 import { listLocations, listProducts, listStockLevels, postStockEntry } from '../lib/api'
 import { ENTRY_LABELS, qtyText, toQty, today } from '../lib/format'
 import { stockIndex } from '../lib/stock'
-import { ErrorBanner, Field, Loading } from '../components/ui'
+import { ErrorBanner, Field, Loading, RequiredProxy } from '../components/ui'
+import { validatePage } from '../lib/formValidation'
 import { ProductSearch } from '../components/Pickers'
 import DateInput from '../components/DateInput'
 
@@ -71,13 +72,8 @@ export default function StockEntryForm() {
   const update = (id, field, value) => setItems((prev) => prev.map((i) => (i.product.id === id ? { ...i, [field]: value } : i)))
   const remove = (id) => setItems((prev) => prev.filter((i) => i.product.id !== id))
 
-  const valid =
-    lines.length > 0 &&
-    lines.every((l) => l.qty > 0 && Number(l.cartons || 0) >= 0 && Number(l.loose || 0) >= 0) &&
-    locationId &&
-    (kind !== 'transfer' || (toLocationId && toLocationId !== locationId))
-
   async function handleSave() {
+    if (!validatePage()) return
     setSaving(true)
     setError('')
     try {
@@ -124,7 +120,7 @@ export default function StockEntryForm() {
             <DateInput value={date} onChange={setDate} />
           </Field>
           <Field label={kind === 'transfer' ? 'From store' : 'Store'}>
-            <select className="input" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+            <select className="input" required value={locationId} onChange={(e) => setLocationId(e.target.value)}>
               {locations.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
@@ -133,8 +129,14 @@ export default function StockEntryForm() {
             </select>
           </Field>
           {kind === 'transfer' ? (
-            <Field label="To store" hint={toLocationId === locationId ? 'Choose a different store' : null}>
-              <select className={`input ${toLocationId === locationId ? 'invalid' : ''}`} value={toLocationId} onChange={(e) => setToLocationId(e.target.value)}>
+            <Field label="To store">
+              <select
+                className="input"
+                required
+                value={toLocationId}
+                onChange={(e) => setToLocationId(e.target.value)}
+                ref={(el) => el?.setCustomValidity(toLocationId && toLocationId === locationId ? 'Choose a different store to move the goods to.' : '')}
+              >
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}
@@ -158,7 +160,10 @@ export default function StockEntryForm() {
             <p className="text-secondary">Search, press Enter, type cartons and loose.</p>
           </div>
         </div>
-        <ProductSearch ref={searchRef} products={products} stock={stock} onPick={addProduct} autoFocus />
+        <div className="field">
+          <ProductSearch ref={searchRef} products={products} stock={stock} onPick={addProduct} autoFocus />
+          <RequiredProxy value={lines.length} message="Add at least one product." />
+        </div>
 
         {lines.length > 0 && (
           <table className="table table-compact lines-table">
@@ -208,11 +213,15 @@ export default function StockEntryForm() {
                         placeholder="0"
                         onChange={(e) => update(p.id, 'loose', e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && searchRef.current?.focus()}
+                        ref={(el) =>
+                          el?.setCustomValidity(
+                            l.qty <= 0 ? 'Enter a quantity.' : l.short ? `Only ${qtyText(available(p.id), p.unit, p.carton_qty)} in this store.` : '',
+                          )
+                        }
                       />
                     </td>
                     <td className="num strong" data-label="Total">
                       {qtyText(l.qty, p.unit, p.carton_qty)}
-                      {l.short && <div className="import-error">More than available</div>}
                     </td>
                     <td className="row-actions">
                       <button className="icon-btn danger" onClick={() => remove(p.id)} aria-label="Remove">
@@ -233,7 +242,7 @@ export default function StockEntryForm() {
           <Link to="/app/stock/entries" className="btn btn-secondary">
             Cancel
           </Link>
-          <button className="btn btn-primary" disabled={!valid || saving} onClick={handleSave}>
+          <button className="btn btn-primary" disabled={saving} onClick={handleSave}>
             {saving ? 'Saving…' : `Save ${ENTRY_LABELS[kind].toLowerCase()}`}
           </button>
         </div>

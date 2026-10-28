@@ -52,16 +52,18 @@ const HEADERS = {
   cbm: ['cbm', 'cbm/ctn', 'cbm per carton', 'c.b.m'],
   weight: ['weight', 'kg', 'kg/ctn', 'gw', 'g.w', 'gross weight'],
   unit_price: ['price', 'unit price', 'rate', 'usd', 'rmb', 'price/pc'],
+  supplier: ['supplier', 'shop', 'vendor', 'factory'],
 }
 
 export const PACKING_TEMPLATE_CSV = [
-  ['code', 'name', 'cartons', 'carton qty', 'cbm', 'weight', 'price'],
-  ['003628', 'STAPLER PIN NEXT # 10', '40', '50', '0.045', '18', '0.12'],
-  ['', 'TAPE CHANYI CY1262 200YD', '120', '36', '0.041', '15', '0.35'],
+  ['code', 'name', 'cartons', 'carton qty', 'cbm', 'price', 'supplier'],
+  ['003628', 'STAPLER PIN NEXT # 10', '40', '50', '0.045', '0.12', ''],
+  ['', 'TAPE CHANYI CY1262 200YD', '120', '36', '0.041', '0.35', 'Chanyi Tape Factory'],
 ].map((r) => r.join(',')).join('\r\n')
 
 // Rows matched to products by code, then by name. Unmatched rows keep their name for creating the product.
-export function readPackingList(text, products) {
+// The optional supplier column is matched by name; blank = the container's supplier.
+export function readPackingList(text, products, suppliers = []) {
   const [header, ...body] = parseCSV(text)
   if (!header) return { error: 'The file is empty.' }
   const cols = {}
@@ -74,10 +76,13 @@ export function readPackingList(text, products) {
 
   const byCode = new Map(products.map((p) => [normKey(p.code), p]))
   const byName = new Map(products.map((p) => [normKey(p.name), p]))
+  const supplierByName = new Map(suppliers.map((s) => [normKey(s.name), s]))
   const seen = new Set()
   const rows = body.map((cells, i) => {
     const get = (f) => (cols[f] === undefined ? '' : String(cells[cols[f]] ?? '').trim())
     const product = byCode.get(normKey(get('code'))) ?? byName.get(normKey(get('name'))) ?? null
+    const supplierName = get('supplier')
+    const supplier = supplierName ? (supplierByName.get(normKey(supplierName)) ?? null) : null
     const row = {
       line: i + 2,
       code: get('code'),
@@ -89,9 +94,12 @@ export function readPackingList(text, products) {
       cbm: get('cbm') || String(product?.cbm ?? ''),
       weight: get('weight'),
       unit_price: get('unit_price'),
+      supplier_id: supplier?.id ?? '',
+      supplier_name: supplier?.name ?? supplierName,
       errors: [],
     }
     if (!product) row.errors.push('No product with this code or name')
+    if (supplierName && !supplier) row.errors.push(`No supplier named "${supplierName}" (add it under Suppliers first)`)
     if (product && seen.has(product.id)) row.errors.push('Same product appears earlier in the file')
     if (lineQty(row) <= 0) row.errors.push('Quantity is 0')
     for (const f of ['cartons', 'carton_qty', 'loose', 'cbm', 'weight', 'unit_price']) {

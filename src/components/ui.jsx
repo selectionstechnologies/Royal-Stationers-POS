@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { refreshValidation } from '../lib/formValidation'
 import { AlertCircle, Ban, Banknote, CheckCircle2, Clock, Landmark, ReceiptText, RotateCcw, X } from 'lucide-react'
 
 export function PageHeader({ title, subtitle, actions }) {
@@ -111,12 +112,32 @@ export function Modal({ title, onClose, children, footer, wide = false }) {
   )
 }
 
-export function Field({ label, hint, children }) {
+// `required` marks controls that are not inputs (pickers, buttons) with the red *.
+// Inputs with the `required` attribute get the * on their own (CSS).
+export function Field({ label, hint, required = false, children }) {
   return (
-    <label className="field">
+    <label className={`field ${required ? 'field-required' : ''}`}>
       <span className="field-label">{label}</span>
       {children}
       {hint && <span className="field-hint">{hint}</span>}
     </label>
+  )
+}
+
+// Lets something that is not an input (a customer picker, a photo button, a product list) take part
+// in form validation. Put it last inside the Field. Invalid while `value` is empty, with `message`.
+export function RequiredProxy({ value, message }) {
+  const filled = Boolean(value)
+  useEffect(() => refreshValidation(), [filled])
+  return (
+    <input
+      className="validation-proxy"
+      tabIndex={-1}
+      aria-hidden="true"
+      required
+      value={filled ? '1' : ''}
+      onChange={() => {}}
+      ref={(el) => el?.setCustomValidity(filled || !message ? '' : message)}
+    />
   )
 }

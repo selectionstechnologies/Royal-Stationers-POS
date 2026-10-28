@@ -93,7 +93,7 @@ export default function SiteProducts() {
           {list.length ? (
             <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {list.map((c) => (
-                <button key={c.slug} type="button" className="site-card group" onClick={() => update({ d: c.slug })}>
+                <button key={c.slug} type="button" className="site-card group" data-reveal="true" onClick={() => update({ d: c.slug })}>
                   <div className="site-card-media relative">
                     <img src={c.image} alt={c.name} loading="lazy" width="960" height="720" />
                     <span className="absolute top-3 left-3 rounded-full bg-surface/95 px-2.5 py-1 text-[12px] font-medium text-ink-2 shadow-[var(--shadow-sm)]">
@@ -120,7 +120,7 @@ export default function SiteProducts() {
               ))}
             </div>
           ) : (
-            <div className="mt-4 flex flex-col items-center rounded-xl border border-dashed border-line-strong bg-surface-2 px-6 py-14 text-center">
+            <div data-reveal="true" className="mt-4 flex flex-col items-center rounded-xl border border-dashed border-line-strong bg-surface-2 px-6 py-14 text-center">
               <span className="icon-tile">
                 <PackageSearch size={22} />
               </span>
@@ -145,7 +145,7 @@ export default function SiteProducts() {
           <SectionHead eyebrow="Brands" title="Names your customers ask for." />
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {BRANDS.map((b) => (
-              <li key={b}>
+              <li key={b} data-reveal="true">
                 <button type="button" className="site-card w-full items-center py-6 text-center" onClick={() => update({ q: b, g: null })}>
                   <span className="text-[20px] font-semibold text-ink">{b}</span>
                   <span className="text-[13px] text-ink-3">See departments</span>

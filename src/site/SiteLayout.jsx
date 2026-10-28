@@ -4,6 +4,7 @@ import { LogIn, Menu, X } from 'lucide-react'
 import { Logo } from '../components/Logo'
 import { CATEGORIES, SHOP, waLink } from './siteInfo'
 import { WhatsAppIcon } from './pieces'
+import { useScrollReveal } from './useScrollReveal'
 
 const NAV = [
   { to: '/', label: 'Home', end: true },
@@ -18,6 +19,7 @@ const navClass = ({ isActive }) => `site-nav-link ${isActive ? 'active' : ''}`
 export default function SiteLayout() {
   const [open, setOpen] = useState(false)
   const { pathname, hash } = useLocation()
+  useScrollReveal()
 
   // New page: close the mobile menu and start at the top, or at the #section the link points to
   useEffect(() => {

@@ -44,7 +44,7 @@ export default function Contact() {
 
       <section className="bg-surface-2">
         <div className="site-wrap grid items-start gap-10 py-16 md:py-24 lg:grid-cols-[1.15fr_1fr] lg:gap-12">
-          <div className="min-w-0 overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow)]">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow)]" data-reveal="true">
             <MapEmbed className="aspect-[4/3] bg-surface-2 lg:aspect-auto lg:h-[460px]" />
             <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
               <div className="min-w-0 text-[14px] text-ink-2">{SHOP.addressLines.join(', ')}</div>
@@ -84,7 +84,7 @@ function EnquiryForm() {
   }
 
   return (
-    <form id="enquiry" onSubmit={submit} className="scroll-mt-24 rounded-xl border border-line bg-surface p-6 shadow-[var(--shadow)] sm:p-7">
+    <form id="enquiry" data-reveal="true" onSubmit={submit} className="scroll-mt-24 rounded-xl border border-line bg-surface p-6 shadow-[var(--shadow)] sm:p-7">
       <h2 className="font-serif text-[26px] font-semibold text-ink">Send an enquiry</h2>
       <p className="mt-2 text-[15px] text-ink-2">Your message opens in WhatsApp, ready to send to {SHOP.phone}.</p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2">

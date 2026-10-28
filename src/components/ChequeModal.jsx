@@ -36,7 +36,7 @@ export default function ChequeModal({ file: initial, onClose, onDone }) {
           <button className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" disabled={!file} onClick={() => onDone(file)}>
+          <button className="btn btn-primary" onClick={() => (file ? onDone(file) : setError('Choose a photo of the cheque first.'))}>
             Use this photo
           </button>
         </>
@@ -46,7 +46,7 @@ export default function ChequeModal({ file: initial, onClose, onDone }) {
       <ErrorBanner message={error} />
 
       <div
-        className={`dropzone ${dragging ? 'dragging' : ''} ${preview ? 'dropzone-preview' : ''}`}
+        className={`dropzone ${dragging ? 'dragging' : ''} ${preview ? 'dropzone-preview' : ''} ${error && !file ? 'dropzone-invalid' : ''}`}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault()
